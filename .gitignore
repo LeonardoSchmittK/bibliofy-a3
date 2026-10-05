@@ -1,0 +1,99 @@
+# ---------------------------------------------
+# .gitignore geral para projetos
+# ---------------------------------------------
+
+# -------- Sistema operacional --------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# -------- Editores / IDEs --------
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# -------- Variáveis de ambiente / segredos --------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# -------- Logs --------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -------- Node / JavaScript / TypeScript --------
+node_modules/
+dist/
+build/
+.next/
+.nuxt/
+out/
+coverage/
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+.pnp.*
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+
+# -------- Python --------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+*.whl
+
+# -------- Java / Kotlin --------
+*.class
+target/
+.gradle/
+*.jar
+*.war
+*.ear
+
+# -------- Dependências / gerenciadores --------
+vendor/
+.bundle/
+
+# -------- Bancos de dados locais --------
+*.sqlite
+*.sqlite3
+*.db
+
+# -------- Arquivos temporários / build --------
+tmp/
+temp/
+*.tmp
+*.bak
+*.orig
