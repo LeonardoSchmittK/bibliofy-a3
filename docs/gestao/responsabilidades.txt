@@ -1,0 +1,44 @@
+BIBLIOFY — GESTÃO DO PROJETO
+============================
+
+1. GESTÃO E COORDENAÇÃO
+   Owner / PM
+   - Leonardo Schmitt
+
+2. SEGURANÇA E QUALIDADE
+   Segurança e Compliance
+   - David
+   - Leonardo Vargas
+   Quality Assurance (QA)
+   - Miguel
+
+3. REQUISITOS E ENTREGÁVEIS
+   Requisitos e Diagramas UML
+   - David
+   - Miguel
+   - Leonardo Schmitt
+   Entregáveis e Apresentação
+   - Matheus
+   - Leonardo Vargas
+   - Leonardo Schmitt
+
+4. DESENVOLVIMENTO
+   Front-end
+   - Leonardo Schmitt
+   - Matheus
+   Back-end
+   - Miguel
+   - David
+   - Leonardo Vargas
+
+5. BANCO DE DADOS — DBA
+   Modelagem, consultas e integridade
+   - Miguel
+   - Matheus
+
+6. INFRAESTRUTURA E DEVOPS
+   Responsáveis por Infraestrutura
+   - Leonardo Schmitt
+   - Miguel
+   CI/CD, automação e configuração
+   - Todos os integrantes
