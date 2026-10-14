@@ -47,3 +47,9 @@ Todo merge deve ser feito na branch dev.
 - A dev não deve ficar muito tempo à frente da main: integrações frequentes
   evitam um PR gigante no final.
  
+ 
+5. RELEASES E TAGS
+------------------
+Ao final de cada milestone, a dev abre PR para a main e o owner criará
+uma nova tag de release na main.
+As tags seguem até o Go Live, que será o PR final e a versão v1.0.
