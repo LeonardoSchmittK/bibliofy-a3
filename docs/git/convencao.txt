@@ -1,0 +1,49 @@
+BIBLIOFY - CONVENÇÕES DE GIT
+============================
+ 
+1. BRANCHES
+-----------
+Toda issue deve ser desenvolvida em uma branch separada.
+ 
+Nome da branch: <label>-<o-que-a-issue-resolve>
+ 
+Exemplo:
+  dba-aplicar-acid
+ 
+Onde:
+  label  -> label da issue (ex.: dba, front, back, security, qa, devops)
+  resto  -> resumo curto do que a issue resolve, separado por hífens
+ 
+ 
+2. COMMITS
+----------
+Os commits devem seguir o padrão:
+ 
+  fix   -> correção de bug
+  feat  -> nova funcionalidade
+  doc   -> documentação
+ 
+Exemplos:
+  feat: adicionar tela de login
+  fix: corrigir validação de e-mail
+  doc: atualizar README com instruções de instalação
+ 
+ 
+3. PULL REQUESTS
+----------------
+Todo PR aberto passará por revisão do owner e/ou de outro integrante
+da equipe antes de ser aprovado e mesclado.
+ 
+ 
+4. FLUXO DE MERGE
+-----------------
+Todo merge deve ser feito na branch dev.
+ 
+  branch da issue --(PR)--> dev --(PR)--> main
+ 
+- As branches das issues são mescladas na dev, via PR revisado.
+- Da dev abre-se PR para a main, ao final de cada milestone.
+- A main contém apenas código estável, servindo de referência do que foi entregue.
+- A dev não deve ficar muito tempo à frente da main: integrações frequentes
+  evitam um PR gigante no final.
+ 
