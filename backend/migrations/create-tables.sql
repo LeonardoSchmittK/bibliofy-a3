@@ -1,0 +1,88 @@
+-- Bibliofy - criação das tabelas (PostgreSQL)
+-- Baseado no ER (bibliofy-erd-v2.puml) e na issue #16.
+-- Regras: sem hard delete (usar livro.arquivado) e FKs com ON DELETE RESTRICT.
+
+BEGIN;
+
+CREATE TABLE pessoa (
+    id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nome   VARCHAR(150) NOT NULL,
+    email  VARCHAR(100) NOT NULL,
+    admin  BOOLEAN      NOT NULL DEFAULT FALSE,
+    CONSTRAINT uq_pessoa_email UNIQUE (email)
+);
+
+CREATE TABLE livro (
+    id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    isbn             VARCHAR(20)  NOT NULL,
+    nome             VARCHAR(200) NOT NULL,
+    autor            VARCHAR(150) NOT NULL,
+    genero           VARCHAR(80)  NOT NULL,
+    data_lancamento  DATE         NOT NULL,
+    quantidade_total INTEGER      NOT NULL,
+    arquivado        BOOLEAN      NOT NULL DEFAULT FALSE,
+    CONSTRAINT uq_livro_isbn UNIQUE (isbn),
+    CONSTRAINT ck_livro_quantidade CHECK (quantidade_total >= 0)
+);
+
+CREATE TABLE emprestimo (
+    id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    pessoa_id        BIGINT  NOT NULL,
+    livro_id         BIGINT  NOT NULL,
+    data_emprestimo  DATE    NOT NULL,
+    data_prevista    DATE    NOT NULL,
+    data_devolucao   DATE,
+    renovado         BOOLEAN NOT NULL DEFAULT FALSE,
+    status_atual     VARCHAR(25) NOT NULL DEFAULT 'EMPRESTADO',
+    CONSTRAINT ck_emprestimo_status CHECK (status_atual IN
+        ('EMPRESTADO', 'ATRASADO', 'DEVOLVIDO', 'DEVOLVIDO_COM_ATRASO')),
+    CONSTRAINT ck_emprestimo_status_devolucao CHECK (
+        (status_atual IN ('EMPRESTADO', 'ATRASADO') AND data_devolucao IS NULL)
+        OR (status_atual IN ('DEVOLVIDO', 'DEVOLVIDO_COM_ATRASO') AND data_devolucao IS NOT NULL)
+    ),
+    CONSTRAINT fk_emprestimo_pessoa FOREIGN KEY (pessoa_id)
+        REFERENCES pessoa (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_emprestimo_livro FOREIGN KEY (livro_id)
+        REFERENCES livro (id) ON DELETE RESTRICT,
+    CONSTRAINT ck_emprestimo_prevista CHECK (data_prevista >= data_emprestimo),
+    CONSTRAINT ck_emprestimo_devolucao CHECK (data_devolucao IS NULL OR data_devolucao >= data_emprestimo)
+);
+
+-- No máximo um empréstimo ativo (sem devolução) por pessoa.
+CREATE UNIQUE INDEX uq_emprestimo_ativo_por_pessoa
+    ON emprestimo (pessoa_id)
+    WHERE data_devolucao IS NULL;
+
+CREATE INDEX ix_emprestimo_livro ON emprestimo (livro_id);
+
+CREATE TABLE bloqueio (
+    id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    pessoa_id      BIGINT       NOT NULL,
+    emprestimo_id  BIGINT       NOT NULL,
+    inicio         DATE         NOT NULL,
+    fim_exclusivo  DATE         NOT NULL,
+    motivo         VARCHAR(200) NOT NULL,
+    CONSTRAINT uq_bloqueio_emprestimo UNIQUE (emprestimo_id),
+    CONSTRAINT fk_bloqueio_pessoa FOREIGN KEY (pessoa_id)
+        REFERENCES pessoa (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_bloqueio_emprestimo FOREIGN KEY (emprestimo_id)
+        REFERENCES emprestimo (id) ON DELETE RESTRICT,
+    CONSTRAINT ck_bloqueio_periodo CHECK (fim_exclusivo > inicio)
+);
+
+CREATE INDEX ix_bloqueio_pessoa ON bloqueio (pessoa_id);
+
+-- Disponibilidade = quantidade_total - empréstimos ativos (atributo derivado).
+CREATE VIEW vw_livro_disponibilidade AS
+SELECT l.id,
+       l.isbn,
+       l.nome,
+       l.quantidade_total,
+       l.quantidade_total - COUNT(e.id) AS quantidade_disponivel
+FROM livro l
+LEFT JOIN emprestimo e
+       ON e.livro_id = l.id
+      AND e.data_devolucao IS NULL
+GROUP BY l.id;
+
+COMMIT;
