@@ -5,18 +5,20 @@ skinparam linetype ortho
 entity "pessoa" as pessoa {
   * id : bigint <<PK>>
   --
+  * codigo : varchar(20) <<UK>>
   * matricula : varchar(30) <<UK>>
   * nome : varchar(150)
   * email : varchar(100) <<UK>>
   telefone : varchar(20)
   * senha_hash : varchar(255)
-  * admin : boolean
+  * papel : varchar(20)
   * ativo : boolean
 }
 
 entity "livro" as livro {
   * id : bigint <<PK>>
   --
+  * codigo : varchar(20) <<UK>>
   * isbn : varchar(20) <<UK>>
   * nome : varchar(200)
   * autor : varchar(150)
@@ -30,6 +32,7 @@ entity "livro" as livro {
 entity "emprestimo" as emprestimo {
   * id : bigint <<PK>>
   --
+  * codigo : varchar(20) <<UK>>
   * pessoa_id : bigint <<FK>>
   * livro_id : bigint <<FK>>
   * data_emprestimo : date
@@ -69,8 +72,8 @@ emprestimo ||--o| bloqueio : gera
 pessoa ||--o{ auditoria : responsável por
 
 note right of pessoa
-  admin = true: bibliotecário.
-  admin = false: leitor.
+  papel: LEITOR ou BIBLIOTECARIO.
+  codigo: id amigável (cus_...).
   ativo: status cadastral;
   bloqueio por atraso fica em bloqueio.
   email único sem diferenciar
@@ -78,6 +81,7 @@ note right of pessoa
 end note
 
 note right of livro
+  codigo: id amigável (liv_...).
   Sem hard delete: usar arquivado.
   Todas as FKs com ON DELETE RESTRICT.
   quantidade_disponivel: view
@@ -88,11 +92,12 @@ end note
 note bottom of emprestimo
   status_atual: EMPRESTADO, ATRASADO,
   DEVOLVIDO, DEVOLVIDO_COM_ATRASO, PERDIDO.
+  codigo: id amigável (emp_...).
   Ativo = EMPRESTADO ou ATRASADO.
   Índice único parcial em pessoa_id
   WHERE status_atual IN (EMPRESTADO, ATRASADO)
-  (máx. 1 ativo por pessoa).
-  ATRASADO: atualizado por job diário (cron).
+  (máx. 1 ativo por pessoa, RF17).
+  ATRASADO: atualizado por cron job diário no backend.
   PERDIDO: não devolvido, encerra o empréstimo
   antes de arquivar o livro (issue #16).
   data_devolucao NULL em EMPRESTADO,

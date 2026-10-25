@@ -1,21 +1,29 @@
 -- Bibliofy - criação das tabelas (PostgreSQL)
--- Baseado no ER (docs/UML/Banco de dados/diagrama_er_v2.png) e na issue #16.
+-- Baseado no ER (docs/UML/Banco de dados/diagrama_er.puml) e na issue #16.
 -- Regras: sem hard delete (usar livro.arquivado) e FKs com ON DELETE RESTRICT.
 
 BEGIN;
 
--- admin = TRUE para bibliotecário, FALSE para leitor (RNF07).
+-- Ids amigáveis (RF18): codigo gerado por sequence com prefixo, usado em filtros e consultas.
+CREATE SEQUENCE seq_pessoa_codigo;
+CREATE SEQUENCE seq_livro_codigo;
+CREATE SEQUENCE seq_emprestimo_codigo;
+
+-- papel: LEITOR ou BIBLIOTECARIO (RNF07).
 -- ativo é o status cadastral (RF05); o bloqueio por atraso fica na tabela bloqueio.
 CREATE TABLE pessoa (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    codigo      VARCHAR(20)  NOT NULL DEFAULT ('cus_' || lpad(nextval('seq_pessoa_codigo')::text, 8, '0')),
     matricula   VARCHAR(30)  NOT NULL,
     nome        VARCHAR(150) NOT NULL,
     email       VARCHAR(100) NOT NULL,
     telefone    VARCHAR(20),
     senha_hash  VARCHAR(255) NOT NULL,
-    admin       BOOLEAN      NOT NULL DEFAULT FALSE,
+    papel       VARCHAR(20)  NOT NULL DEFAULT 'LEITOR',
     ativo       BOOLEAN      NOT NULL DEFAULT TRUE,
-    CONSTRAINT uq_pessoa_matricula UNIQUE (matricula)
+    CONSTRAINT uq_pessoa_codigo UNIQUE (codigo),
+    CONSTRAINT uq_pessoa_matricula UNIQUE (matricula),
+    CONSTRAINT ck_pessoa_papel CHECK (papel IN ('LEITOR', 'BIBLIOTECARIO'))
 );
 
 -- E-mail único sem diferenciar maiúsculas/minúsculas.
@@ -23,6 +31,7 @@ CREATE UNIQUE INDEX uq_pessoa_email ON pessoa (lower(email));
 
 CREATE TABLE livro (
     id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    codigo           VARCHAR(20)  NOT NULL DEFAULT ('liv_' || lpad(nextval('seq_livro_codigo')::text, 8, '0')),
     isbn             VARCHAR(20)  NOT NULL,
     nome             VARCHAR(200) NOT NULL,
     autor            VARCHAR(150) NOT NULL,
@@ -31,15 +40,17 @@ CREATE TABLE livro (
     data_lancamento  DATE         NOT NULL,
     quantidade_total INTEGER      NOT NULL,
     arquivado        BOOLEAN      NOT NULL DEFAULT FALSE,
+    CONSTRAINT uq_livro_codigo UNIQUE (codigo),
     CONSTRAINT uq_livro_isbn UNIQUE (isbn),
     CONSTRAINT ck_livro_quantidade CHECK (quantidade_total >= 0)
 );
 
--- status_atual: ATRASADO é atualizado por um job diário (cron).
+-- status_atual: ATRASADO é atualizado por um cron job diário no backend (RF12).
 -- PERDIDO: exemplar não devolvido, usado para encerrar empréstimos antes de
 -- arquivar o livro (issue #16). Não conta como empréstimo ativo do leitor.
 CREATE TABLE emprestimo (
     id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    codigo           VARCHAR(20) NOT NULL DEFAULT ('emp_' || lpad(nextval('seq_emprestimo_codigo')::text, 8, '0')),
     pessoa_id        BIGINT  NOT NULL,
     livro_id         BIGINT  NOT NULL,
     data_emprestimo  DATE    NOT NULL,
@@ -47,6 +58,7 @@ CREATE TABLE emprestimo (
     data_devolucao   DATE,
     renovado         BOOLEAN NOT NULL DEFAULT FALSE,
     status_atual     VARCHAR(25) NOT NULL DEFAULT 'EMPRESTADO',
+    CONSTRAINT uq_emprestimo_codigo UNIQUE (codigo),
     CONSTRAINT ck_emprestimo_status CHECK (status_atual IN
         ('EMPRESTADO', 'ATRASADO', 'DEVOLVIDO', 'DEVOLVIDO_COM_ATRASO', 'PERDIDO')),
     CONSTRAINT ck_emprestimo_status_devolucao CHECK (
@@ -63,7 +75,7 @@ CREATE TABLE emprestimo (
     CONSTRAINT uq_emprestimo_id_pessoa UNIQUE (id, pessoa_id)
 );
 
--- No máximo um empréstimo ativo por pessoa.
+-- No máximo um empréstimo ativo por pessoa (RF17).
 CREATE UNIQUE INDEX uq_emprestimo_ativo_por_pessoa
     ON emprestimo (pessoa_id)
     WHERE status_atual IN ('EMPRESTADO', 'ATRASADO');
@@ -116,6 +128,7 @@ CREATE INDEX ix_auditoria_responsavel ON auditoria (responsavel_id);
 -- Disponibilidade = quantidade_total - exemplares emprestados ou perdidos (atributo derivado).
 CREATE VIEW vw_livro_disponibilidade AS
 SELECT l.id,
+       l.codigo,
        l.isbn,
        l.nome,
        l.autor,
