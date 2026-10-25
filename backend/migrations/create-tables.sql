@@ -4,11 +4,18 @@
 
 BEGIN;
 
+-- admin = TRUE para bibliotecário, FALSE para leitor (RNF07).
+-- ativo é o status cadastral (RF05); o bloqueio por atraso fica na tabela bloqueio.
 CREATE TABLE pessoa (
-    id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    nome   VARCHAR(150) NOT NULL,
-    email  VARCHAR(100) NOT NULL,
-    admin  BOOLEAN      NOT NULL DEFAULT FALSE,
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    matricula   VARCHAR(30)  NOT NULL,
+    nome        VARCHAR(150) NOT NULL,
+    email       VARCHAR(100) NOT NULL,
+    telefone    VARCHAR(20),
+    senha_hash  VARCHAR(255) NOT NULL,
+    admin       BOOLEAN      NOT NULL DEFAULT FALSE,
+    ativo       BOOLEAN      NOT NULL DEFAULT TRUE,
+    CONSTRAINT uq_pessoa_matricula UNIQUE (matricula),
     CONSTRAINT uq_pessoa_email UNIQUE (email)
 );
 
@@ -17,6 +24,7 @@ CREATE TABLE livro (
     isbn             VARCHAR(20)  NOT NULL,
     nome             VARCHAR(200) NOT NULL,
     autor            VARCHAR(150) NOT NULL,
+    editora          VARCHAR(150) NOT NULL,
     genero           VARCHAR(80)  NOT NULL,
     data_lancamento  DATE         NOT NULL,
     quantidade_total INTEGER      NOT NULL,
@@ -71,6 +79,27 @@ CREATE TABLE bloqueio (
 );
 
 CREATE INDEX ix_bloqueio_pessoa ON bloqueio (pessoa_id);
+
+-- Registro das operações críticas (RNF09). Só recebe INSERT, gravado na mesma
+-- transação da operação auditada. Nunca guardar senha_hash em dados.
+CREATE TABLE auditoria (
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    responsavel_id  BIGINT      NOT NULL,
+    acao            VARCHAR(30) NOT NULL,
+    entidade        VARCHAR(30) NOT NULL,
+    entidade_id     BIGINT      NOT NULL,
+    dados           JSONB,
+    criado_em       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT fk_auditoria_pessoa FOREIGN KEY (responsavel_id)
+        REFERENCES pessoa (id) ON DELETE RESTRICT,
+    CONSTRAINT ck_auditoria_acao CHECK (acao IN
+        ('CADASTRO', 'ALTERACAO', 'ARQUIVAMENTO', 'EMPRESTIMO', 'RENOVACAO', 'DEVOLUCAO', 'BLOQUEIO')),
+    CONSTRAINT ck_auditoria_entidade CHECK (entidade IN
+        ('PESSOA', 'LIVRO', 'EMPRESTIMO', 'BLOQUEIO'))
+);
+
+CREATE INDEX ix_auditoria_entidade ON auditoria (entidade, entidade_id);
+CREATE INDEX ix_auditoria_responsavel ON auditoria (responsavel_id);
 
 -- Disponibilidade = quantidade_total - empréstimos ativos (atributo derivado).
 CREATE VIEW vw_livro_disponibilidade AS
