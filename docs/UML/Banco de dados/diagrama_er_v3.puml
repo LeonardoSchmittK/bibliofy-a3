@@ -1,0 +1,118 @@
+@startuml bibliofy-erd
+hide circle
+skinparam linetype ortho
+
+entity "pessoa" as pessoa {
+  * id : bigint <<PK>>
+  --
+  * matricula : varchar(30) <<UK>>
+  * nome : varchar(150)
+  * email : varchar(100) <<UK>>
+  telefone : varchar(20)
+  * senha_hash : varchar(255)
+  * admin : boolean
+  * ativo : boolean
+}
+
+entity "livro" as livro {
+  * id : bigint <<PK>>
+  --
+  * isbn : varchar(20) <<UK>>
+  * nome : varchar(200)
+  * autor : varchar(150)
+  * editora : varchar(150)
+  * genero : varchar(80)
+  * data_lancamento : date
+  * quantidade_total : int
+  * arquivado : boolean
+}
+
+entity "emprestimo" as emprestimo {
+  * id : bigint <<PK>>
+  --
+  * pessoa_id : bigint <<FK>>
+  * livro_id : bigint <<FK>>
+  * data_emprestimo : date
+  * data_prevista : date
+  data_devolucao : date
+  * renovado : boolean
+  * status_atual : varchar(25)
+  --
+  UK (id, pessoa_id)
+}
+
+entity "bloqueio" as bloqueio {
+  * id : bigint <<PK>>
+  --
+  * pessoa_id : bigint <<FK>>
+  * emprestimo_id : bigint <<FK>> <<UK>>
+  * inicio : date
+  * fim_exclusivo : date
+  * motivo : varchar(200)
+}
+
+entity "auditoria" as auditoria {
+  * id : bigint <<PK>>
+  --
+  * responsavel_id : bigint <<FK>>
+  * acao : varchar(30)
+  * entidade : varchar(30)
+  * entidade_id : bigint
+  dados : jsonb
+  * criado_em : timestamptz
+}
+
+pessoa ||--o{ emprestimo : solicita
+livro ||--o{ emprestimo : contém
+pessoa ||--o{ bloqueio : recebe
+emprestimo ||--o| bloqueio : gera
+pessoa ||--o{ auditoria : responsável por
+
+note right of pessoa
+  admin = true: bibliotecário.
+  admin = false: leitor.
+  ativo: status cadastral;
+  bloqueio por atraso fica em bloqueio.
+  email único sem diferenciar
+  maiúsculas: índice em lower(email).
+end note
+
+note right of livro
+  Sem hard delete: usar arquivado.
+  Todas as FKs com ON DELETE RESTRICT.
+  quantidade_disponivel: view
+  vw_livro_disponibilidade
+  (desconta EMPRESTADO, ATRASADO e PERDIDO).
+end note
+
+note bottom of emprestimo
+  status_atual: EMPRESTADO, ATRASADO,
+  DEVOLVIDO, DEVOLVIDO_COM_ATRASO, PERDIDO.
+  Ativo = EMPRESTADO ou ATRASADO.
+  Índice único parcial em pessoa_id
+  WHERE status_atual IN (EMPRESTADO, ATRASADO)
+  (máx. 1 ativo por pessoa).
+  ATRASADO: atualizado por job diário (cron).
+  PERDIDO: não devolvido, encerra o empréstimo
+  antes de arquivar o livro (issue #16).
+  data_devolucao NULL em EMPRESTADO,
+  ATRASADO e PERDIDO.
+end note
+
+note bottom of bloqueio
+  CHECK (fim_exclusivo > inicio)
+  FK (emprestimo_id, pessoa_id) ->
+  emprestimo (id, pessoa_id): bloqueio
+  sempre da pessoa do empréstimo.
+end note
+
+note bottom of auditoria
+  Só INSERT, na mesma transação da operação.
+  entidade_id referencia a entidade indicada
+  em entidade (sem FK).
+  acao: CADASTRO, ALTERACAO, ARQUIVAMENTO,
+  EMPRESTIMO, RENOVACAO, DEVOLUCAO, PERDA,
+  BLOQUEIO.
+end note
+
+@enduml
