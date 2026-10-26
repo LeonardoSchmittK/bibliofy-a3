@@ -83,6 +83,8 @@ end note
 note right of livro
   codigo: id amigável (liv_...).
   Sem hard delete: usar arquivado.
+  Arquivado bloqueia só novos empréstimos
+  (trigger); os ativos seguem o fluxo normal.
   Todas as FKs com ON DELETE RESTRICT.
   quantidade_disponivel: view
   vw_livro_disponibilidade
@@ -98,8 +100,7 @@ note bottom of emprestimo
   WHERE status_atual IN (EMPRESTADO, ATRASADO)
   (máx. 1 ativo por pessoa, RF17).
   ATRASADO: atualizado por cron job diário no backend.
-  PERDIDO: não devolvido, encerra o empréstimo
-  antes de arquivar o livro (issue #16).
+  PERDIDO: exemplar não devolvido.
   data_devolucao NULL em EMPRESTADO,
   ATRASADO e PERDIDO.
 end note

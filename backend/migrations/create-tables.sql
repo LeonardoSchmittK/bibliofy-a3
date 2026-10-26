@@ -46,8 +46,9 @@ CREATE TABLE livro (
 );
 
 -- status_atual: ATRASADO é atualizado por um cron job diário no backend (RF12).
--- PERDIDO: exemplar não devolvido, usado para encerrar empréstimos antes de
--- arquivar o livro (issue #16). Não conta como empréstimo ativo do leitor.
+-- PERDIDO: exemplar não devolvido. Não conta como empréstimo ativo do leitor.
+-- Arquivar um livro não altera empréstimos em andamento: eles seguem o fluxo
+-- normal (renovação, devolução, atraso) e só novos empréstimos são bloqueados.
 CREATE TABLE emprestimo (
     id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     codigo           VARCHAR(20) NOT NULL DEFAULT ('emp_' || lpad(nextval('seq_emprestimo_codigo')::text, 8, '0')),
@@ -81,6 +82,21 @@ CREATE UNIQUE INDEX uq_emprestimo_ativo_por_pessoa
     WHERE status_atual IN ('EMPRESTADO', 'ATRASADO');
 
 CREATE INDEX ix_emprestimo_livro ON emprestimo (livro_id);
+
+-- Livro arquivado não aceita novos empréstimos (RF04/RF19).
+CREATE FUNCTION fn_bloqueia_emprestimo_livro_arquivado() RETURNS trigger AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM livro WHERE id = NEW.livro_id AND arquivado) THEN
+        RAISE EXCEPTION 'Livro % está arquivado e não aceita novos empréstimos', NEW.livro_id
+            USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_emprestimo_livro_arquivado
+    BEFORE INSERT ON emprestimo
+    FOR EACH ROW EXECUTE FUNCTION fn_bloqueia_emprestimo_livro_arquivado();
 
 -- Usado pelo job diário que marca os atrasados.
 CREATE INDEX ix_emprestimo_prevista_ativo
