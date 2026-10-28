@@ -1,6 +1,6 @@
 # Bibliofy — Back-end
 
-FastAPI + PostgreSQL 17 + SQLAlchemy 2 (síncrono) + Alembic. Python 3.14.
+FastAPI + PostgreSQL 17 + SQLAlchemy 2 (síncrono). Python 3.14.
 
 ## Instalação
 
@@ -24,7 +24,6 @@ Copie `.env.example` para `.env` e ajuste se necessário.
 
 ```bash
 docker compose up -d          # PostgreSQL local
-alembic upgrade head          # aplica as migrations
 uvicorn app.main:app --reload
 ```
 
@@ -47,12 +46,14 @@ ruff check .
 ruff format --check .
 ```
 
-## Migrations
+## Banco de dados
+
+O schema é definido em `database/schema.sql` (fonte da verdade) e aplicado automaticamente
+na primeira vez que o container sobe. Para recriar do zero (apaga os dados):
 
 ```bash
-alembic revision --autogenerate -m "descrição"
-alembic upgrade head
-alembic downgrade -1
+docker compose down -v
+docker compose up -d
 ```
 
-`migrations/create-tables.sql` é o SQL de referência do schema; a migration inicial será criada em outra issue.
+Não há Alembic: mudanças de schema são editadas em `database/schema.sql` e comunicadas ao time.

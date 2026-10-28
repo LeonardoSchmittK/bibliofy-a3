@@ -1,7 +1,7 @@
 from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase
 
-# Mesma convenção de nomes usada em migrations/create-tables.sql.
+# Mesma convenção de nomes usada em database/schema.sql.
 NAMING_CONVENTION = {
     "pk": "pk_%(table_name)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",

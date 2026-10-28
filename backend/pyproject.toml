@@ -9,7 +9,6 @@ dependencies = [
     "pydantic-settings",
     "sqlalchemy>=2",
     "psycopg[binary]>=3",
-    "alembic",
     "pwdlib[argon2]",
     "pyjwt",
     "python-multipart",
