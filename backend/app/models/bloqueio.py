@@ -3,11 +3,10 @@ from datetime import date
 from sqlalchemy import BIGINT, DATE, VARCHAR, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.app.db.base import Base
+from app.db.base import Base
 
 
 class Bloqueio(Base):
-
     __tablename__ = "bloqueio"
 
     id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
