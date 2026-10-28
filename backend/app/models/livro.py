@@ -9,6 +9,7 @@ class Livro(Base):
     __tablename__ = "livro"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    
     codigo: Mapped[str] = mapped_column(String(20), unique=True)
     isbn: Mapped[str] = mapped_column(String(20), unique=True)
     nome: Mapped[str] = mapped_column(String(200))
