@@ -1,4 +1,5 @@
 # a3-gestao
+[![CodeQL](https://github.com/LeonardoSchmittK/bibliofy-a3/actions/workflows/codeql.yml/badge.svg)](https://github.com/LeonardoSchmittK/bibliofy-a3/actions/workflows/codeql.yml)
 
 Breve descrição do projeto. Explique aqui o objetivo principal e o problema que ele resolve.
 
