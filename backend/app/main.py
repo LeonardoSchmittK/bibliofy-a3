@@ -14,6 +14,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health.router)
+    # TODO(#35) Registrar as rotas de autenticação e usuários (depois de implementá-las):
+    #   1. `from app.api.routes import auth, health, usuarios`
+    #   2. `app.include_router(auth.router)` e `app.include_router(usuarios.router)`
+    #   3. Confirmar em /docs que o botão "Authorize" aparece (OAuth2PasswordBearer).
     return app
 
 

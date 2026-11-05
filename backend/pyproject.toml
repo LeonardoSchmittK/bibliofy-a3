@@ -12,6 +12,8 @@ dependencies = [
     "pwdlib[argon2]",
     "pyjwt",
     "python-multipart",
+    # TODO(#35): adicionar "email-validator" (`uv add email-validator`) para o EmailStr dos
+    # schemas de usuário (app/schemas/usuario.py).
 ]
 
 [dependency-groups]
