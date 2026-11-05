@@ -20,3 +20,12 @@ class Livro(Base):
     data_lancamento: Mapped[date] = mapped_column(DATE)
     quantidade_total: Mapped[int] = mapped_column(INTEGER)
     arquivado: Mapped[bool] = mapped_column(BOOLEAN, server_default=text("FALSE"))
+
+    # TODO(#36) Descrição do livro (RF01: "descrição opcional").
+    #   Testes: tests/livros/test_rotas_livros.py
+    #   1. Adicionar a coluna `descricao TEXT` (anulável) à tabela `livro` em database/schema.sql
+    #      (ver TODO lá): o schema.sql é a fonte da verdade, não há Alembic.
+    #   2. Mapear aqui: `descricao: Mapped[str | None] = mapped_column(TEXT)` (importar `TEXT` de
+    #      sqlalchemy).
+    #   3. Recriar o banco local para aplicar o schema novo: `docker compose down -v` e
+    #      `docker compose up -d`; avisar o time, porque os dados locais são apagados.
