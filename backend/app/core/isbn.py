@@ -2,18 +2,21 @@
 
 Testes que devem passar: tests/livros/test_isbn.py.
 """
+import re
 
-# TODO(#36) Passo a passo da implementação:
-#   1. Definir as regex compiladas do módulo (sobre o texto já sem hífens/espaços):
-#        - ISBN-10: `^\d{9}[\dX]$`  (o X só vale como último caractere);
-#        - ISBN-13: `^97[89]\d{10}$` (prefixo 978 ou 979; sem X).
-#   2. `normalizar_isbn(texto: str) -> str`:
-#        - `strip()`, remover hífens e espaços (`re.sub(r"[\s-]", "", texto)`), `upper()`;
-#        - se não casar com nenhuma das regex, levantar `ValueError("ISBN inválido")`;
-#        - devolver só dígitos (e o `X` final do ISBN-10), que cabem em `livro.isbn` (VARCHAR(20)).
-#   3. `isbn_valido(texto: str) -> bool`: chama `normalizar_isbn` e devolve False no `ValueError`.
-#   4. Decisão do time: os testes validam só o FORMATO, como a wiki pede (regex). Se quiserem
-#      conferir também o dígito verificador, é uma regra nova: combinar antes e atualizar os testes.
-#   5. Gravar sempre o ISBN normalizado no banco: assim "978-3-16-148410-0" e "9783161484100"
-#      são o mesmo livro e a restrição UNIQUE (`uq_livro_isbn`) pega a duplicidade.
-#   6. Rodar `pytest tests/livros/test_isbn.py`.
+ISBN10_REGEX = re.compile(r"^\d{9}[\dX]$")
+ISBN13_REGEX = re.compile(r"^97[89]\d{10}$")
+
+def isbn_valido(texto: str) -> bool:
+    try:
+        normalizar_isbn(texto)
+        return True
+    except ValueError:
+        return False
+
+def normalizar_isbn(texto: str) -> str:
+    isbn = re.sub(r"[\s-]", "", texto.strip().upper())
+
+    if not (ISBN10_REGEX.fullmatch(isbn) or ISBN13_REGEX.fullmatch(isbn)):
+        raise ValueError(f"ISBN inválido: {isbn}")
+    return isbn
