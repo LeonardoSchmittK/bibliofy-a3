@@ -29,12 +29,6 @@ CREATE TABLE pessoa (
 -- E-mail único sem diferenciar maiúsculas/minúsculas.
 CREATE UNIQUE INDEX uq_pessoa_email ON pessoa (lower(email));
 
--- TODO(#36): RF01 pede "descrição opcional" e a tabela ainda não tem esse campo.
---   1. Adicionar `descricao TEXT,` (anulável) à tabela livro, depois de `genero`.
---   2. Se a view vw_livro_disponibilidade (abaixo) for usada para a listagem, incluir
---      `l.descricao` nas colunas do SELECT.
---   3. Espelhar em app/models/livro.py (ver TODO lá) e no diagrama docs/UML/Banco de dados/diagrama_er.puml.
---   4. Recriar o banco local (`docker compose down -v && docker compose up -d`).
 CREATE TABLE livro (
     id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     codigo           VARCHAR(20)  NOT NULL DEFAULT ('liv_' || lpad(nextval('seq_livro_codigo')::text, 8, '0')),
@@ -43,6 +37,7 @@ CREATE TABLE livro (
     autor            VARCHAR(150) NOT NULL,
     editora          VARCHAR(150) NOT NULL,
     genero           VARCHAR(80)  NOT NULL,
+    descricao        TEXT                 ,
     data_lancamento  DATE         NOT NULL,
     quantidade_total INTEGER      NOT NULL,
     arquivado        BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -156,6 +151,7 @@ SELECT l.id,
        l.autor,
        l.editora,
        l.genero,
+       l.descricao,
        l.arquivado,
        l.quantidade_total,
        l.quantidade_total - COUNT(e.id) AS quantidade_disponivel
