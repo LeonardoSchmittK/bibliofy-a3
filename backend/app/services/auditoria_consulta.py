@@ -3,28 +3,84 @@
 Testes que devem passar: tests/auditoria/test_consulta_service.py e, para a escrita,
 tests/auditoria/test_registrar.py (que exercita app/services/auditoria.py).
 """
+from datetime import datetime
 
-# TODO(auditoria) Passo a passo da implementação:
-#   0. Pré-requisito: `app/services/auditoria.py` nasce na issue #35 com `registrar`. Esta issue
-#      o COMPLETA (o arquivo não existe nesta branch; integrar depois do merge da #35):
-#        - constantes `ACOES` e `ENTIDADES` (tuplas) iguais aos CHECK de database/schema.sql;
-#        - `class AuditoriaInvalidaError(ValueError)`;
-#        - `sanitizar_dados(dados) -> dict | None`: cópia (sem mutar a entrada) sem as chaves
-#          `senha`, `senha_hash` e `access_token` em qualquer nível (dicts e listas); valores
-#          não JSON (date, datetime, Decimal) viram `str`; `None` continua `None`;
-#        - `registrar(...)`: validar `acao` e `entidade` contra as constantes (senão
-#          `AuditoriaInvalidaError`, sem gravar nada), usar `sanitizar_dados`, `db.add` +
-#          `db.flush()`, NUNCA `db.commit()` (mesma transação da operação auditada).
-#   1. `class RegistroNaoEncontradoError(Exception)`; a rota converte em 404.
-#   2. `listar_auditoria(db, *, entidade=None, entidade_id=None, acao=None,
-#      responsavel_codigo=None, de=None, ate=None, limite=50, deslocamento=0)
-#      -> tuple[list[Auditoria], int]` (registros da página, total sem paginação):
-#        - validar: `1 <= limite <= 200`, `deslocamento >= 0`, `de <= ate` (senão `ValueError`);
-#        - filtros combinados com E; `responsavel_codigo` faz join com `Pessoa.codigo`;
-#        - período: `criado_em >= de` e `criado_em < ate` (início inclusivo, fim exclusivo);
-#        - ordem: `criado_em DESC, id DESC`; carregar o responsável junto
-#          (`selectinload(Auditoria.responsavel)`) para evitar N+1;
-#        - total: `select(func.count())` com os mesmos filtros.
-#   3. `obter_registro(db, registro_id) -> Auditoria`: `RegistroNaoEncontradoError` se não existir.
-#   4. Consultar NÃO gera registro de auditoria.
-#   5. Rodar `pytest tests/auditoria`.
+from sqlalchemy import Select, func, select
+from sqlalchemy.orm import Session, selectinload
+
+from app.models.auditoria import Auditoria
+from app.models.pessoa import Pessoa
+
+
+class RegistroNaoEncontradoError(Exception):
+    pass
+
+
+def _filtrar(
+    stmt: Select, *, entidade, entidade_id, acao, responsavel_codigo, de, ate
+) -> Select:
+    if entidade is not None:
+        stmt = stmt.where(Auditoria.entidade == entidade)
+    if entidade_id is not None:
+        stmt = stmt.where(Auditoria.entidade_id == entidade_id)
+    if acao is not None:
+        stmt = stmt.where(Auditoria.acao == acao)
+    if responsavel_codigo is not None:
+        stmt = stmt.join(Pessoa, Pessoa.id == Auditoria.responsavel_id).where(
+            Pessoa.codigo == responsavel_codigo
+        )
+    if de is not None:
+        stmt = stmt.where(Auditoria.criado_em >= de)
+    if ate is not None:
+        stmt = stmt.where(Auditoria.criado_em < ate)
+    return stmt
+
+
+def listar_auditoria(
+    db: Session,
+    *,
+    entidade: str | None = None,
+    entidade_id: int | None = None,
+    acao: str | None = None,
+    responsavel_codigo: str | None = None,
+    de: datetime | None = None,
+    ate: datetime | None = None,
+    limite: int = 50,
+    deslocamento: int = 0,
+) -> tuple[list[Auditoria], int]:
+    """Registros da página (mais recentes primeiro) e o total sem paginação."""
+    if not 1 <= limite <= 200:
+        raise ValueError("limite deve estar entre 1 e 200")
+    if deslocamento < 0:
+        raise ValueError("deslocamento não pode ser negativo")
+    if de is not None and ate is not None and de > ate:
+        raise ValueError("'de' não pode ser posterior a 'ate'")
+
+    filtros = dict(
+        entidade=entidade,
+        entidade_id=entidade_id,
+        acao=acao,
+        responsavel_codigo=responsavel_codigo,
+        de=de,
+        ate=ate,
+    )
+    total = db.scalar(_filtrar(select(func.count()).select_from(Auditoria), **filtros)) or 0
+    stmt = (
+        _filtrar(select(Auditoria), **filtros)
+        .options(selectinload(Auditoria.responsavel))
+        .order_by(Auditoria.criado_em.desc(), Auditoria.id.desc())
+        .limit(limite)
+        .offset(deslocamento)
+    )
+    return list(db.scalars(stmt).all()), total
+
+
+def obter_registro(db: Session, registro_id: int) -> Auditoria:
+    registro = db.scalar(
+        select(Auditoria)
+        .options(selectinload(Auditoria.responsavel))
+        .where(Auditoria.id == registro_id)
+    )
+    if registro is None:
+        raise RegistroNaoEncontradoError(registro_id)
+    return registro
