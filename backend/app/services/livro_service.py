@@ -10,8 +10,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.isbn import normalizar_isbn
-from app.models import Auditoria, Emprestimo, Livro, Pessoa
+from app.models import Emprestimo, Livro, Pessoa
 from app.schemas.livro import LivroAtualizar, LivroCriar, LivroSaida
+from app.services.auditoria import registrar
 
 STATUS_FORA_DA_ESTANTE = ("EMPRESTADO", "ATRASADO", "PERDIDO")
 STATUS_ATIVOS = ("EMPRESTADO", "ATRASADO")
@@ -92,15 +93,13 @@ def _isbn_em_uso(db: Session, isbn: str, ignorar_id: int | None = None) -> bool:
 def _auditar(
     db: Session, responsavel: Pessoa, acao: str, livro: Livro, dados: dict[str, Any] | None = None
 ) -> None:
-    # TODO(#35): trocar por `auditoria.registrar(...)` quando app/services/auditoria.py existir.
-    db.add(
-        Auditoria(
-            responsavel_id=responsavel.id,
-            acao=acao,
-            entidade="LIVRO",
-            entidade_id=livro.id,
-            dados=dados,
-        )
+    registrar(
+        db,
+        responsavel=responsavel,
+        acao=acao,
+        entidade="LIVRO",
+        entidade_id=livro.id,
+        dados=dados,
     )
 
 
