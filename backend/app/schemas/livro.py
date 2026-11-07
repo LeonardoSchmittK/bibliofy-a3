@@ -2,13 +2,20 @@
 
 Testes que devem passar: tests/livros/test_schemas.py.
 """
+
 from datetime import date
-from typing import Literal, Annotated
+from typing import Annotated, Literal
+
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
+
 from app.core.isbn import normalizar_isbn
-from pydantic import BaseModel, ConfigDict, AfterValidator, StringConstraints, Field
 
 Isbn = Annotated[str, AfterValidator(normalizar_isbn)]
 Texto = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+Quantidade = Annotated[int, Field(ge=0, strict=True)]
+
+Disponibilidade = Literal["DISPONIVEL", "EMPRESTADO", "INDISPONIVEL"]
+
 
 class LivroCriar(BaseModel):
     isbn: Isbn
@@ -17,8 +24,9 @@ class LivroCriar(BaseModel):
     editora: Texto
     genero: Texto
     data_lancamento: date
-    quantidade_total: int = Field(ge=0, strict=True)
+    quantidade_total: Quantidade
     descricao: str | None = None
+
 
 class LivroAtualizar(BaseModel):
     isbn: Isbn | None = None
@@ -26,13 +34,14 @@ class LivroAtualizar(BaseModel):
     autor: Texto | None = None
     editora: Texto | None = None
     genero: Texto | None = None
-    data_nascimento: date | None = None
-    quantidade_total: int | None = Field(default=None, ge=0, strict=True)
+    data_lancamento: date | None = None
+    quantidade_total: Quantidade | None = None
     descricao: str | None = None
 
-Disponibilidade = Literal["DISPONIVEL", "EMPRESTADO", "INDISPONIVEL"]
+
 class LivroSaida(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
     codigo: str
     isbn: str
     nome: str
@@ -45,6 +54,7 @@ class LivroSaida(BaseModel):
     quantidade_disponivel: int
     disponibilidade: Disponibilidade
     arquivado: bool
+
 
 class PreviaArquivamento(BaseModel):
     emprestimos_ativos: int
