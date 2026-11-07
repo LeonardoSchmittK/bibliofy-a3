@@ -19,3 +19,9 @@ class Auditoria(Base):
     entidade_id: Mapped[int] = mapped_column(BIGINT)
     dados: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     criado_em: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    # TODO(auditoria) Relação com o responsável (usada por app/services/auditoria_consulta.py).
+    #   Testes: tests/auditoria/test_consulta_service.py (`registro.responsavel.codigo`).
+    #   1. Importar `relationship` de sqlalchemy.orm e `Pessoa` de app.models.pessoa.
+    #   2. `responsavel: Mapped["Pessoa"] = relationship(lazy="raise")`: o serviço carrega com
+    #      `selectinload`, e o acesso preguiçoso acidental falha alto em vez de gerar N+1.
