@@ -25,8 +25,10 @@ CAMPOS_AUDITADOS = (
 class LivroNaoEncontradoError(Exception):
     pass
 
+
 class LivroDuplicadoError(Exception):
     pass
+
 
 class QuantidadeInsuficienteError(Exception):
     pass

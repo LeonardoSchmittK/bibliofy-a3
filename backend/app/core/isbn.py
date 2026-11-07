@@ -2,10 +2,12 @@
 
 Testes que devem passar: tests/livros/test_isbn.py.
 """
+
 import re
 
 ISBN10_REGEX = re.compile(r"^\d{9}[\dX]$")
 ISBN13_REGEX = re.compile(r"^97[89]\d{10}$")
+
 
 def isbn_valido(texto: str) -> bool:
     try:
@@ -13,6 +15,7 @@ def isbn_valido(texto: str) -> bool:
         return True
     except ValueError:
         return False
+
 
 def normalizar_isbn(texto: str) -> str:
     isbn = re.sub(r"[\s-]", "", texto.strip().upper())

@@ -24,14 +24,18 @@ from app.services.livro_service import (
 
 router = APIRouter(prefix="/livros", tags=["livros"])
 
+
 def _conflito(motivo: str) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"motivo": motivo})
+
 
 def _nao_encontrado() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Livro não encontrado")
 
+
 def _eh_bibliotecario(usuario: Pessoa) -> bool:
     return usuario.papel == "BIBLIOTECARIO"
+
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=LivroSaida)
 def criar_livro(

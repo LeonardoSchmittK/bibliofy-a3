@@ -17,6 +17,7 @@ from app.models import Pessoa
 
 _bearer = HTTPBearer(auto_error=False)
 
+
 def _nao_autenticado() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
