@@ -142,15 +142,21 @@ CREATE TABLE auditoria (
 CREATE INDEX ix_auditoria_entidade ON auditoria (entidade, entidade_id);
 CREATE INDEX ix_auditoria_responsavel ON auditoria (responsavel_id);
 
--- TODO(auditoria): RNF10 pede log imutável e hoje só há convenção ("só recebe INSERT").
---   Testes: tests/auditoria/test_imutabilidade.py
---   1. Criar `fn_auditoria_imutavel() RETURNS trigger` que faz
---      `RAISE EXCEPTION 'auditoria é imutável' USING ERRCODE = 'restrict_violation'`.
---   2. `CREATE TRIGGER tg_auditoria_imutavel BEFORE UPDATE OR DELETE ON auditoria
---      FOR EACH ROW EXECUTE FUNCTION fn_auditoria_imutavel();`
---   3. Mesma função em `BEFORE TRUNCATE ... FOR EACH STATEMENT` (tg_auditoria_sem_truncate).
---   4. Replicar em backend/migrations/create-tables.sql, se ainda for mantido em paralelo.
---   5. Recriar o banco local (`docker compose down -v && docker compose up -d`).
+CREATE OR REPLACE FUNCTION fn_auditoria_imutavel() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'auditoria é imutável' USING ERRCODE = 'restrict_violation';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Impede UPDATE e DELETE.
+CREATE TRIGGER tg_auditoria_imutavel
+    BEFORE UPDATE OR DELETE ON auditoria
+    FOR EACH ROW EXECUTE FUNCTION fn_auditoria_imutavel();
+
+-- Impede TRUNCATE (que não dispara triggers por linha).
+CREATE TRIGGER tg_auditoria_sem_truncate
+    BEFORE TRUNCATE ON auditoria
+    FOR EACH STATEMENT EXECUTE FUNCTION fn_auditoria_imutavel();
 
 -- Disponibilidade = quantidade_total - exemplares emprestados ou perdidos (atributo derivado).
 CREATE VIEW vw_livro_disponibilidade AS
