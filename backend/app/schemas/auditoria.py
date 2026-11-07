@@ -3,12 +3,49 @@
 Testes que devem passar: tests/auditoria/test_schemas.py.
 """
 
-# TODO(auditoria) Passo a passo da implementação:
-#   1. `ResponsavelSaida(BaseModel)`: só `codigo` e `nome` (nunca e-mail, senha_hash ou id interno).
-#   2. `AuditoriaSaida(BaseModel)` com `model_config = ConfigDict(from_attributes=True)`:
-#      `id: int`, `acao: Literal[...]` e `entidade: Literal[...]` (valores de ACOES/ENTIDADES em
-#      app/services/auditoria.py), `entidade_id: int`, `responsavel: ResponsavelSaida`,
-#      `dados: dict | None`, `criado_em: datetime`. Não expor `responsavel_id`.
-#   3. `PaginaAuditoria(BaseModel)`: `itens: list[AuditoriaSaida]`, `total`, `limite`,
-#      `deslocamento` (inteiros).
-#   4. Rodar `pytest tests/auditoria/test_schemas.py`.
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
+
+# Devem ser iguais aos CHECKs ck_auditoria_acao / ck_auditoria_entidade (e a ACOES/ENTIDADES
+# em app/services/auditoria.py).
+Acao = Literal[
+    "CADASTRO",
+    "ALTERACAO",
+    "ARQUIVAMENTO",
+    "EMPRESTIMO",
+    "RENOVACAO",
+    "DEVOLUCAO",
+    "PERDA",
+    "BLOQUEIO",
+]
+Entidade = Literal["PESSOA", "LIVRO", "EMPRESTIMO", "BLOQUEIO"]
+
+
+class ResponsavelSaida(BaseModel):
+    """Só código e nome: nunca e-mail, senha_hash ou id interno."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    codigo: str
+    nome: str
+
+
+class AuditoriaSaida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    acao: Acao
+    entidade: Entidade
+    entidade_id: int
+    responsavel: ResponsavelSaida
+    dados: dict | None
+    criado_em: datetime
+
+
+class PaginaAuditoria(BaseModel):
+    itens: list[AuditoriaSaida]
+    total: int
+    limite: int
+    deslocamento: int
