@@ -37,6 +37,7 @@ CREATE TABLE livro (
     autor            VARCHAR(150) NOT NULL,
     editora          VARCHAR(150) NOT NULL,
     genero           VARCHAR(80)  NOT NULL,
+    descricao        TEXT                 ,
     data_lancamento  DATE         NOT NULL,
     quantidade_total INTEGER      NOT NULL,
     arquivado        BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -141,6 +142,22 @@ CREATE TABLE auditoria (
 CREATE INDEX ix_auditoria_entidade ON auditoria (entidade, entidade_id);
 CREATE INDEX ix_auditoria_responsavel ON auditoria (responsavel_id);
 
+CREATE OR REPLACE FUNCTION fn_auditoria_imutavel() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'auditoria é imutável' USING ERRCODE = 'restrict_violation';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Impede UPDATE e DELETE.
+CREATE TRIGGER tg_auditoria_imutavel
+    BEFORE UPDATE OR DELETE ON auditoria
+    FOR EACH ROW EXECUTE FUNCTION fn_auditoria_imutavel();
+
+-- Impede TRUNCATE (que não dispara triggers por linha).
+CREATE TRIGGER tg_auditoria_sem_truncate
+    BEFORE TRUNCATE ON auditoria
+    FOR EACH STATEMENT EXECUTE FUNCTION fn_auditoria_imutavel();
+
 -- Disponibilidade = quantidade_total - exemplares emprestados ou perdidos (atributo derivado).
 CREATE VIEW vw_livro_disponibilidade AS
 SELECT l.id,
@@ -150,6 +167,7 @@ SELECT l.id,
        l.autor,
        l.editora,
        l.genero,
+       l.descricao,
        l.arquivado,
        l.quantidade_total,
        l.quantidade_total - COUNT(e.id) AS quantidade_disponivel

@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://bibliofy:bibliofy@localhost:5432/bibliofy"
+    jwt_secret: str = "dev-only-troque-em-producao"
     cors_origins: list[str] = ["http://localhost:5173"]
 
 
