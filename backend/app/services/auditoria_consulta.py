@@ -3,6 +3,7 @@
 Testes que devem passar: tests/auditoria/test_consulta_service.py e, para a escrita,
 tests/auditoria/test_registrar.py (que exercita app/services/auditoria.py).
 """
+
 from datetime import datetime
 
 from sqlalchemy import Select, func, select
@@ -16,9 +17,7 @@ class RegistroNaoEncontradoError(Exception):
     pass
 
 
-def _filtrar(
-    stmt: Select, *, entidade, entidade_id, acao, responsavel_codigo, de, ate
-) -> Select:
+def _filtrar(stmt: Select, *, entidade, entidade_id, acao, responsavel_codigo, de, ate) -> Select:
     if entidade is not None:
         stmt = stmt.where(Auditoria.entidade == entidade)
     if entidade_id is not None:

@@ -28,15 +28,15 @@ router = APIRouter(
     description="Consulta paginada do histórico de auditoria com filtros opcionais.",
 )
 def listar_auditorias(
-        db: Annotated[Session, Depends(get_db)],
-        entidade: Entidade | None = None,
-        acao: Acao | None = None,
-        entidade_id: int | None = None,
-        responsavel: str | None = None,
-        de: datetime | None = None,
-        ate: datetime | None = None,
-        limite: int = Query(50, ge=1, le=200),
-        deslocamento: int = Query(0, ge=0),
+    db: Annotated[Session, Depends(get_db)],
+    entidade: Entidade | None = None,
+    acao: Acao | None = None,
+    entidade_id: int | None = None,
+    responsavel: str | None = None,
+    de: datetime | None = None,
+    ate: datetime | None = None,
+    limite: int = Query(50, ge=1, le=200),
+    deslocamento: int = Query(0, ge=0),
 ) -> PaginaAuditoria:
     try:
         itens, total = auditoria_consulta.listar_auditoria(
@@ -65,5 +65,3 @@ def obter_auditoria(registro_id: int, db: Annotated[Session, Depends(get_db)]):
         return auditoria_consulta.obter_registro(db, registro_id)
     except auditoria_consulta.RegistroNaoEncontradoError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Registro não encontrado") from exc
-
-# O log é imutável: sem POST/PUT/PATCH/DELETE (a ausência já devolve 405).
