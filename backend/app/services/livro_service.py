@@ -3,41 +3,201 @@
 Testes que devem passar: tests/livros/test_livro_service.py.
 """
 
-# TODO(#36) Passo a passo da implementação:
-#   1. Exceções do módulo: `LivroNaoEncontradoError`, `LivroDuplicadoError` (ISBN repetido) e
-#      `QuantidadeInsuficienteError`. A rota as converte em 404, 409 e 409.
-#   2. `calcular_disponibilidade(quantidade_total, emprestados, arquivado)`
-#      -> `(disponiveis, status)`, função pura (RF14):
-#        - `disponiveis = quantidade_total - emprestados` (no mínimo 0 na exibição);
-#        - arquivado OU `quantidade_total == 0` -> "INDISPONIVEL";
-#        - `disponiveis == 0` -> "EMPRESTADO"; senão -> "DISPONIVEL".
-#   3. "Emprestados" = empréstimos com status EMPRESTADO, ATRASADO ou PERDIDO (o exemplar
-#      perdido não volta). É exatamente o que a view `vw_livro_disponibilidade` já calcula
-#      (`quantidade_disponivel`): reaproveitar a view (`select(text(...))`/tabela mapeada) ou
-#      repetir a contagem com `func.count` + `outerjoin`, e usar `calcular_disponibilidade`.
-#   4. `criar_livro(db, dados: LivroCriar, responsavel: Pessoa) -> LivroSaida`:
-#        - `Livro(**dados.model_dump())` (o ISBN já vem normalizado do schema);
-#        - ISBN repetido (`IntegrityError` em `uq_livro_isbn`, ou checagem prévia) ->
-#          `LivroDuplicadoError`;
-#        - `auditoria.registrar(CADASTRO / LIVRO)` (app/services/auditoria.py, ver issue #35) e
-#          `db.commit()` na mesma transação.
-#   5. `listar_livros(db, *, nome, autor, isbn, genero, codigo, incluir_arquivados=False)`:
-#        - `nome`, `autor`, `genero`: `ilike(f"%{valor}%")` (parcial, sem diferenciar caixa);
-#        - `isbn`: `normalizar_isbn(valor)` e igualdade (se o texto não for ISBN válido, devolver
-#          lista vazia em vez de erro); `codigo`: igualdade (filtro estilo Stripe, RF18);
-#        - sem `incluir_arquivados`, filtrar `arquivado = FALSE` (RF19: sai do catálogo).
-#   6. `obter_livro(db, codigo, *, incluir_arquivados=False) -> LivroSaida`: não encontrado (ou
-#      arquivado sem `incluir_arquivados`) -> `LivroNaoEncontradoError`.
-#   7. `atualizar_livro(db, codigo, dados: LivroAtualizar, responsavel) -> LivroSaida`:
-#        - aplica só `dados.model_dump(exclude_unset=True)`;
-#        - ISBN de OUTRO livro -> `LivroDuplicadoError` (manter o próprio ISBN é permitido);
-#        - `quantidade_total` menor que os empréstimos ativos -> `QuantidadeInsuficienteError`
-#          (regra proposta: o time confirma antes de manter);
-#        - auditar ALTERACAO com `dados={"antes": {...}, "depois": {...}}` só dos campos mudados;
-#        - NÃO mexer em empréstimos: eles referenciam o livro por `livro_id`, então o histórico
-#          reflete os novos dados sozinho.
-#   8. `contar_emprestimos_ativos(db, codigo) -> int`: só EMPRESTADO e ATRASADO (PERDIDO e
-#      devolvidos não contam), para o aviso do RF19.
-#   9. `arquivar_livro(db, codigo, responsavel) -> LivroSaida`: `arquivado = True`, sem apagar
-#      nada e sem tocar nos empréstimos em andamento (RF04/RF19); auditar ARQUIVAMENTO.
-#  10. Rodar `pytest tests/livros/test_livro_service.py`.
+from typing import Any
+
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.core.isbn import normalizar_isbn
+from app.models import Auditoria, Emprestimo, Livro, Pessoa
+from app.schemas.livro import LivroAtualizar, LivroCriar, LivroSaida
+
+STATUS_FORA_DA_ESTANTE = ("EMPRESTADO", "ATRASADO", "PERDIDO")
+STATUS_ATIVOS = ("EMPRESTADO", "ATRASADO")
+
+CAMPOS_AUDITADOS = (
+    "isbn", "nome", "autor", "editora", "genero", "data_lancamento", "quantidade_total",
+    "descricao",
+)  # fmt: skip
+
+
+class LivroNaoEncontradoError(Exception):
+    pass
+
+class LivroDuplicadoError(Exception):
+    pass
+
+class QuantidadeInsuficienteError(Exception):
+    pass
+
+
+def calcular_disponibilidade(
+    quantidade_total: int, emprestados: int, arquivado: bool
+) -> tuple[int, str]:
+    disponiveis = max(quantidade_total - emprestados, 0)
+    if arquivado or quantidade_total == 0:
+        return disponiveis, "INDISPONIVEL"
+    if disponiveis == 0:
+        return disponiveis, "EMPRESTADO"
+    return disponiveis, "DISPONIVEL"
+
+
+# --- helpers ---------------------------------------------------------------------------------
+def _contar(db: Session, livro_id: int, status: tuple[str, ...]) -> int:
+    return db.scalar(
+        select(func.count(Emprestimo.id)).where(
+            Emprestimo.livro_id == livro_id, Emprestimo.status_atual.in_(status)
+        )
+    )
+
+
+def _para_saida(db: Session, livro: Livro) -> LivroSaida:
+    emprestados = _contar(db, livro.id, STATUS_FORA_DA_ESTANTE)
+    disponiveis, status = calcular_disponibilidade(
+        livro.quantidade_total, emprestados, livro.arquivado
+    )
+    return LivroSaida(
+        codigo=livro.codigo,
+        isbn=livro.isbn,
+        nome=livro.nome,
+        autor=livro.autor,
+        editora=livro.editora,
+        genero=livro.genero,
+        data_lancamento=livro.data_lancamento,
+        descricao=livro.descricao,
+        quantidade_total=livro.quantidade_total,
+        quantidade_disponivel=disponiveis,
+        disponibilidade=status,
+        arquivado=livro.arquivado,
+    )
+
+
+def _buscar(db: Session, codigo: str, *, incluir_arquivados: bool = True) -> Livro:
+    livro = db.scalars(select(Livro).where(Livro.codigo == codigo)).one_or_none()
+    if livro is None or (livro.arquivado and not incluir_arquivados):
+        raise LivroNaoEncontradoError(codigo)
+    return livro
+
+
+def _isbn_em_uso(db: Session, isbn: str, ignorar_id: int | None = None) -> bool:
+    consulta = select(Livro.id).where(Livro.isbn == isbn)
+    if ignorar_id is not None:
+        consulta = consulta.where(Livro.id != ignorar_id)
+    return db.scalars(consulta).first() is not None
+
+
+def _auditar(
+    db: Session, responsavel: Pessoa, acao: str, livro: Livro, dados: dict[str, Any] | None = None
+) -> None:
+    # TODO(#35): trocar por `auditoria.registrar(...)` quando app/services/auditoria.py existir.
+    db.add(
+        Auditoria(
+            responsavel_id=responsavel.id,
+            acao=acao,
+            entidade="LIVRO",
+            entidade_id=livro.id,
+            dados=dados,
+        )
+    )
+
+
+def _json(valor: Any) -> Any:
+    return valor.isoformat() if hasattr(valor, "isoformat") else valor
+
+
+# --- operações -------------------------------------------------------------------------------
+def criar_livro(db: Session, dados: LivroCriar, responsavel: Pessoa) -> LivroSaida:
+    if _isbn_em_uso(db, dados.isbn):
+        raise LivroDuplicadoError(dados.isbn)
+
+    livro = Livro(**dados.model_dump())
+    db.add(livro)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise LivroDuplicadoError(dados.isbn) from exc
+    db.refresh(livro)  # traz o `codigo` gerado pelo banco
+
+    _auditar(db, responsavel, "CADASTRO", livro)
+    db.commit()
+    return _para_saida(db, livro)
+
+
+def listar_livros(
+    db: Session,
+    *,
+    nome: str | None = None,
+    autor: str | None = None,
+    isbn: str | None = None,
+    genero: str | None = None,
+    codigo: str | None = None,
+    incluir_arquivados: bool = False,
+) -> list[LivroSaida]:
+    consulta = select(Livro).order_by(Livro.nome, Livro.id)
+
+    if nome:
+        consulta = consulta.where(Livro.nome.ilike(f"%{nome}%"))
+    if autor:
+        consulta = consulta.where(Livro.autor.ilike(f"%{autor}%"))
+    if genero:
+        consulta = consulta.where(Livro.genero.ilike(f"%{genero}%"))
+    if codigo:
+        consulta = consulta.where(Livro.codigo == codigo)
+    if isbn:
+        try:
+            consulta = consulta.where(Livro.isbn == normalizar_isbn(isbn))
+        except ValueError:
+            return []
+    if not incluir_arquivados:
+        consulta = consulta.where(Livro.arquivado.is_(False))
+
+    return [_para_saida(db, livro) for livro in db.scalars(consulta)]
+
+
+def obter_livro(db: Session, codigo: str, *, incluir_arquivados: bool = False) -> LivroSaida:
+    return _para_saida(db, _buscar(db, codigo, incluir_arquivados=incluir_arquivados))
+
+
+def atualizar_livro(
+    db: Session, codigo: str, dados: LivroAtualizar, responsavel: Pessoa
+) -> LivroSaida:
+    livro = _buscar(db, codigo)
+    mudancas = dados.model_dump(exclude_unset=True)
+
+    if "isbn" in mudancas and _isbn_em_uso(db, mudancas["isbn"], ignorar_id=livro.id):
+        raise LivroDuplicadoError(mudancas["isbn"])
+
+    nova_qtd = mudancas.get("quantidade_total")
+    if nova_qtd is not None and nova_qtd < _contar(db, livro.id, STATUS_ATIVOS):
+        raise QuantidadeInsuficienteError(codigo)
+
+    antes: dict[str, Any] = {}
+    depois: dict[str, Any] = {}
+    for campo, valor in mudancas.items():
+        if campo not in CAMPOS_AUDITADOS:
+            continue
+        atual = getattr(livro, campo)
+        if atual != valor:
+            antes[campo] = _json(atual)
+            depois[campo] = _json(valor)
+            setattr(livro, campo, valor)
+
+    if depois:
+        _auditar(db, responsavel, "ALTERACAO", livro, {"antes": antes, "depois": depois})
+    db.commit()
+    return _para_saida(db, livro)
+
+
+def contar_emprestimos_ativos(db: Session, codigo: str) -> int:
+    livro = _buscar(db, codigo)
+    return _contar(db, livro.id, STATUS_ATIVOS)
+
+
+def arquivar_livro(db: Session, codigo: str, responsavel: Pessoa) -> LivroSaida:
+    livro = _buscar(db, codigo)
+    livro.arquivado = True
+    _auditar(db, responsavel, "ARQUIVAMENTO", livro)
+    db.commit()
+    return _para_saida(db, livro)
