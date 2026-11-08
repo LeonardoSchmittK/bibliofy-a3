@@ -4,7 +4,6 @@ Testes que devem passar: tests/auth/test_schemas.py (TokenSaida).
 """
 from pydantic import BaseModel
 
-
 # TODO(#35) Passo a passo da implementação:
 #   1. Criar `class TokenSaida(BaseModel)` com `access_token: str` e `token_type: str = "bearer"`.
 #   2. Usá-la como `response_model` do `POST /auth/login` (app/api/routes/auth.py).
