@@ -19,7 +19,7 @@ dependencies = [
 dev = [
     "pytest",
     "pytest-cov",
-    "httpx",
+    "httpx2",
     "time-machine",
     "testcontainers[postgres]",
     "ruff",
