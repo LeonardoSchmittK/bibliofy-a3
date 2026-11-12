@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = Field(default=15, ge=1, le=15)
 
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

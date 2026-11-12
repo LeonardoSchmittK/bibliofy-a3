@@ -2,6 +2,7 @@
 
 Testes que devem passar: as verificações de `Auditoria` em tests/auth/test_rotas_usuarios.py.
 """
+
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -22,6 +23,7 @@ from app.models import Auditoria, Pessoa
 
 _CHAVES_PROIBIDAS = {"senha", "senha_hash", "access_hash"}
 
+
 def _sanitizar(valor: Any) -> Any:
     if isinstance(valor, dict):
         return {k: _sanitizar(v) for k, v in valor.items() if k not in _CHAVES_PROIBIDAS}
@@ -29,21 +31,22 @@ def _sanitizar(valor: Any) -> Any:
         return [_sanitizar(v) for v in valor]
     return valor
 
-def registrar (
-        db: Session,
-        *,
-        responsavel: Pessoa,
-        acao: str,
-        entidade: str,
-        entidade_id: int,
-        dados: dict[str, Any] | None = None
+
+def registrar(
+    db: Session,
+    *,
+    responsavel: Pessoa,
+    acao: str,
+    entidade: str,
+    entidade_id: int,
+    dados: dict[str, Any] | None = None,
 ) -> Auditoria:
     registro = Auditoria(
-        responsavel_id= responsavel.id,
-        acao= acao,
+        responsavel_id=responsavel.id,
+        acao=acao,
         entidade=entidade,
         entidade_id=entidade_id,
-        dados=_sanitizar(dados) if dados is not None else None
+        dados=_sanitizar(dados) if dados is not None else None,
     )
     db.add(registro)
     db.flush()

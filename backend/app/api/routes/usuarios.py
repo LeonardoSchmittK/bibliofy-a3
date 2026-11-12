@@ -2,6 +2,7 @@
 
 Testes que devem passar: tests/auth/test_rotas_usuarios.py.
 """
+
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,8 +18,10 @@ router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 
 DB = Annotated[Session, Depends(get_db)]
 
+
 def _nao_encontrado() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
+
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=UsuarioSaida)
 def criar(dados: UsuarioCriar, operador: Bibliotecario, db: DB):
@@ -28,6 +31,7 @@ def criar(dados: UsuarioCriar, operador: Bibliotecario, db: DB):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="E-mail ou matrícula já cadastrados"
         ) from None
+
 
 @router.get("", response_model=list[UsuarioSaida])
 def listar(
@@ -39,6 +43,7 @@ def listar(
 ):
     return usuario_service.listar_usuarios(db, solicitante, nome, matricula, papel)
 
+
 @router.get("/{codigo}", response_model=UsuarioSaida)
 def obter(codigo: str, solicitante: UsuarioAtual, db: DB):
     try:
@@ -47,6 +52,7 @@ def obter(codigo: str, solicitante: UsuarioAtual, db: DB):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado") from None
     except usuario_service.UsuarioNaoEncontradoError:
         raise _nao_encontrado() from None
+
 
 @router.patch("/{codigo}", response_model=UsuarioSaida)
 def atualizar(codigo: str, dados: UsuarioAtualizar, operador: Bibliotecario, db: DB):
@@ -58,6 +64,7 @@ def atualizar(codigo: str, dados: UsuarioAtualizar, operador: Bibliotecario, db:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="E-mail ou matrícula já cadastrados"
         ) from None
+
 
 @router.put("/{codigo}/papel", response_model=UsuarioSaida)
 def alterar_papel(codigo: str, dados: PapelAlterar, operador: Bibliotecario, db: DB):

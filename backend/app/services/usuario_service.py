@@ -2,6 +2,7 @@
 
 Testes que devem passar: tests/auth/test_rotas_usuarios.py.
 """
+
 from operator import or_
 
 from sqlalchemy import func, select
@@ -52,7 +53,7 @@ def _dados_cadastrais(pessoa: Pessoa) -> dict:
 
 
 def _existe_duplicado(
-        db: Session, *, email: str | None, matricula: str | None, ignorar_id: int | None = None
+    db: Session, *, email: str | None, matricula: str | None, ignorar_id: int | None = None
 ) -> bool:
     condicoes = []
     if email is not None:
@@ -103,6 +104,7 @@ def criar_usuario(db: Session, dados: UsuarioCriar, operador: Pessoa) -> Pessoa:
     db.commit()
     return pessoa
 
+
 def listar_usuarios(
     db: Session,
     solicitante: Pessoa,
@@ -121,16 +123,15 @@ def listar_usuarios(
         consulta = consulta.where(Pessoa.papel == papel)
     return list(db.scalars(consulta).all())
 
+
 def obter_usuario(db: Session, solicitante: Pessoa, codigo: str) -> Pessoa:
     if solicitante.papel != "BIBLIOTECARIO" and solicitante.codigo != codigo:
         raise PermissionError
     return _buscar_por_codigo(db, codigo)
 
+
 def atualizar_usuario(
-    db: Session,
-    operador: Pessoa,
-    codigo: str,
-    dados: UsuarioAtualizar
+    db: Session, operador: Pessoa, codigo: str, dados: UsuarioAtualizar
 ) -> Pessoa:
     pessoa = _buscar_por_codigo(db, codigo)
     mudancas = dados.model_dump(exclude_unset=True)
@@ -162,6 +163,7 @@ def atualizar_usuario(
     )
     db.commit()
     return pessoa
+
 
 def alterar_papel(db: Session, operador: Pessoa, codigo: str, papel: str) -> Pessoa:
     pessoa = _buscar_por_codigo(db, codigo)

@@ -2,6 +2,7 @@
 
 Testes que devem passar: tests/auth/test_rotas_auth.py.
 """
+
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -18,6 +19,7 @@ from app.services import auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
 @router.post("/login", response_model=TokenSaida)
 def login(
     form: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -32,9 +34,11 @@ def login(
         )
     return TokenSaida(access_token=auth_service.emitir_token(pessoa))
 
+
 @router.get("/me", response_model=UsuarioSaida)
 def me(usuario: UsuarioAtual) -> Pessoa:
     return usuario
+
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(_usuario: UsuarioAtual) -> Response:

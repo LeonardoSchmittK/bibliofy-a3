@@ -2,6 +2,7 @@
 
 Testes que devem passar: tests/auth/test_schemas.py (TokenSaida).
 """
+
 from pydantic import BaseModel
 
 # TODO(#35) Passo a passo da implementação:
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 #   3. O login recebe formulário OAuth2 (`OAuth2PasswordRequestForm`), por isso não há schema de
 #      entrada: `username` = e-mail e `password` = senha.
 #   4. Rodar `pytest tests/auth/test_schemas.py -k token`.
+
 
 class TokenSaida(BaseModel):
     access_token: str

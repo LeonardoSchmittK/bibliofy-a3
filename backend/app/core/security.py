@@ -15,8 +15,10 @@ from app.models import Pessoa
 
 _hasher = PasswordHash.recommended()
 
+
 def hash_senha(senha: str) -> str:
     return _hasher.hash(senha)
+
 
 def verificar_senha(senha: str, senha_hash: str) -> bool:
     try:
@@ -24,8 +26,10 @@ def verificar_senha(senha: str, senha_hash: str) -> bool:
     except PwdlibError:
         return False
 
+
 class TokenInvalidoError(Exception):
     pass
+
 
 def criar_token_acesso(pessoa: Pessoa) -> str:
     settings = get_settings()
@@ -33,14 +37,19 @@ def criar_token_acesso(pessoa: Pessoa) -> str:
     payload = {
         "sub": pessoa.codigo,
         "iat": agora,
-        "exp": agora + timedelta(minutes=settings.jwt_expire_minutes)
+        "exp": agora + timedelta(minutes=settings.jwt_expire_minutes),
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
 
 def decodificar_token(token: str) -> dict:
     settings = get_settings()
     try:
-        return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm],
-                          options={"require": ["sub", "exp", "iat"]})
+        return jwt.decode(
+            token,
+            settings.jwt_secret,
+            algorithms=[settings.jwt_algorithm],
+            options={"require": ["sub", "exp", "iat"]},
+        )
     except jwt.PyJWTError as exc:
         raise TokenInvalidoError from exc

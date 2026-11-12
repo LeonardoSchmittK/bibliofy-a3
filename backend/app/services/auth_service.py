@@ -2,6 +2,7 @@
 
 Testes que devem passar: tests/auth/test_rotas_auth.py (login).
 """
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -28,8 +29,9 @@ _HASH_FALSO = hash_senha("senha-falsa-para-igualar-o-tempo-de-resposta")
 
 
 def autenticar(db: Session, email: str, senha: str) -> Pessoa | None:
-    pessoa: Pessoa | None = db.scalars(select(Pessoa).where(func.lower(Pessoa.email) == 
-                                                            email.lower())).first()
+    pessoa: Pessoa | None = db.scalars(
+        select(Pessoa).where(func.lower(Pessoa.email) == email.lower())
+    ).first()
     if pessoa is None:
         verificar_senha(senha, _HASH_FALSO)
         return None
@@ -37,6 +39,7 @@ def autenticar(db: Session, email: str, senha: str) -> Pessoa | None:
     if not (senha_ok and pessoa.ativo):
         return None
     return pessoa
+
 
 def emitir_token(pessoa: Pessoa) -> str:
     return criar_token_acesso(pessoa)
