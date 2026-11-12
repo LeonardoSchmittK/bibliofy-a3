@@ -1,4 +1,6 @@
-# a3-gestao
+# Bibliofy - projeto A3 de qualidade de software
+[![CodeQL](https://github.com/LeonardoSchmittK/bibliofy-a3/actions/workflows/codeql.yml/badge.svg)](https://github.com/LeonardoSchmittK/bibliofy-a3/actions/workflows/codeql.yml)
+[![Integração](https://github.com/LeonardoSchmittK/bibliofy-a3/actions/workflows/python-app.yml/badge.svg)](https://github.com/LeonardoSchmittK/bibliofy-a3/actions/workflows/python-app.yml)
 
 Breve descrição do projeto. Explique aqui o objetivo principal e o problema que ele resolve.
 
