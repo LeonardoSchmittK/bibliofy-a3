@@ -1,6 +1,7 @@
 import pytest
 
-from tests.db_guard import DestinoNaoAutorizadoError, validar_destino
+from tests import db_guard
+from tests.db_guard import DestinoNaoAutorizadoError, preparar_banco, validar_destino
 
 APP_URL = "postgresql+psycopg://app:senha-da-app@localhost:5432/bibliofy"
 APP_TEST_URL = "postgresql+psycopg://app:senha-da-app@localhost:5432/bibliofy_test"
@@ -76,3 +77,21 @@ def test_recusa_nunca_imprime_a_senha(url):
         validar_destino(url, [APP_TEST_URL])
 
     assert "super-segredo" not in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        f"{BASE}/bibliofy",
+        f"{BASE}/bibliofy_test",
+    ],
+)
+def test_recusa_sem_chamar_create_engine(monkeypatch, url):
+    def create_engine_que_falha(*args, **kwargs):
+        raise AssertionError("create_engine não deveria ser chamado antes da validação")
+
+    monkeypatch.setattr(db_guard, "create_engine", create_engine_que_falha)
+    monkeypatch.setattr(db_guard, "_urls_da_aplicacao", lambda: [APP_TEST_URL])
+
+    with pytest.raises(DestinoNaoAutorizadoError):
+        preparar_banco(url, externo=True)
