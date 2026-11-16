@@ -1,4 +1,7 @@
+import uuid
+
 import pytest
+from sqlalchemy import create_engine, text
 
 from tests import db_guard
 from tests.db_guard import DestinoNaoAutorizadoError, preparar_banco, validar_destino
@@ -95,3 +98,39 @@ def test_recusa_sem_chamar_create_engine(monkeypatch, url):
 
     with pytest.raises(DestinoNaoAutorizadoError):
         preparar_banco(url, externo=True)
+
+
+@pytest.mark.integracao
+def test_banco_recusado_permanece_intacto(db_engine):
+    nome = f"decoy_{uuid.uuid4().hex[:12]}"
+    admin_url = db_engine.url.set(database="postgres").render_as_string(hide_password=False)
+    decoy_url = db_engine.url.set(database=nome).render_as_string(hide_password=False)
+
+    admin = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+    try:
+        with admin.connect() as conn:
+            conn.execute(text(f'CREATE DATABASE "{nome}"'))
+
+        decoy = create_engine(decoy_url)
+        try:
+            with decoy.begin() as conn:
+                conn.execute(text("CREATE TABLE sentinela (valor text NOT NULL)"))
+                conn.execute(text("INSERT INTO sentinela (valor) VALUES ('intacto')"))
+        finally:
+            decoy.dispose()
+
+        with pytest.raises(DestinoNaoAutorizadoError):
+            preparar_banco(decoy_url, externo=True)
+
+        verificacao = create_engine(decoy_url)
+        try:
+            with verificacao.connect() as conn:
+                valor = conn.execute(text("SELECT valor FROM sentinela")).scalar_one()
+        finally:
+            verificacao.dispose()
+
+        assert valor == "intacto"
+    finally:
+        with admin.connect() as conn:
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{nome}" WITH (FORCE)'))
+        admin.dispose()
