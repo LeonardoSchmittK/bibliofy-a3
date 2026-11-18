@@ -4,12 +4,10 @@ import { describe, it, expect } from 'vitest'
 import App from '../../src/App'
 
 describe('Aplicação Bibliofy', () => {
-  it('deve exibir o título da página inicial', () => {
+  it('deve abrir o login quando não há sessão', () => {
     render(<App />)
 
-    expect(
-      screen.getByRole('heading', { name: /Bibliofy/i })
-    ).toBeInTheDocument()
+    expect(screen.getByLabelText(/qual seu email/i)).toBeInTheDocument()
   })
 
   it('deve exibir uma citação aleatória no canto superior', () => {

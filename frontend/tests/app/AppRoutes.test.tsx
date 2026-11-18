@@ -1,66 +1,61 @@
 
 import { render, screen, cleanup } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { describe, it, expect, afterEach } from 'vitest'
 import { AppRoutes } from '../../src/routes/AppRoutes'
 
 afterEach(() => {
   cleanup()
+  window.localStorage.clear()
   window.history.replaceState({}, '', '/')
 })
 
 describe('Rotas do Bibliofy', () => {
   it('deve navegar para Login', async () => {
-    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/login')
     render(<AppRoutes />)
 
-    await user.click(screen.getByRole('link', { name: /login/i }))
-
-    expect(screen.getByRole('heading', { name: /login/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/qual seu email/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/qual sua senha/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /acessar/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /voltar ao início/i })).not.toBeInTheDocument()
   })
 
   it('deve navegar para Cadastro', async () => {
-    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/cadastro')
     render(<AppRoutes />)
 
-    await user.click(screen.getByRole('link', { name: /^cadastro$/i }))
-
-    expect(screen.getByRole('heading', { name: /cadastro/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/qual seu nome/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/qual sua matrícula/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /cadastrar/i })).toBeInTheDocument()
   })
 
-  it('deve navegar para Área do bibliotecário', async () => {
-    const user = userEvent.setup()
+  it('redireciona para login quando a pessoa não está autenticada', () => {
+    window.history.replaceState({}, '', '/')
     render(<AppRoutes />)
 
-    await user.click(screen.getByRole('link', { name: /bibliotecário/i }))
-
-    expect(screen.getByRole('heading', { name: /bibliotecário/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/qual seu email/i)).toBeInTheDocument()
   })
 
-  it('deve navegar para Área do leitor', async () => {
-    const user = userEvent.setup()
+  it('redireciona rotas privadas para login sem sessão', () => {
+    window.history.replaceState({}, '', '/livros')
     render(<AppRoutes />)
 
-    await user.click(screen.getByRole('link', { name: /área do leitor/i }))
-
-    expect(screen.getByRole('heading', { name: /área do leitor/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/qual seu email/i)).toBeInTheDocument()
   })
 
-  it('deve navegar para Livros', async () => {
-    const user = userEvent.setup()
+  it('permite acesso às rotas privadas com token de sessão', () => {
+    window.localStorage.setItem('access_token', 'test-token')
+    window.history.replaceState({}, '', '/livros')
     render(<AppRoutes />)
-
-    await user.click(screen.getByRole('link', { name: /repositório de livros/i }))
 
     expect(screen.getByRole('heading', { name: /repositório de livros/i })).toBeInTheDocument()
   })
 
-  it('deve navegar para Empréstimos', async () => {
-    const user = userEvent.setup()
+  it('permite acesso à área do bibliotecário com token de sessão', () => {
+    window.localStorage.setItem('access_token', 'test-token')
+    window.history.replaceState({}, '', '/bibliotecario')
     render(<AppRoutes />)
 
-    await user.click(screen.getByRole('link', { name: /empréstimos/i }))
-
-    expect(screen.getByRole('heading', { name: /consulta de empréstimos/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /área do bibliotecário/i })).toBeInTheDocument()
   })
 })
