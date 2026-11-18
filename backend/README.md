@@ -57,3 +57,11 @@ docker compose up -d
 ```
 
 Não há Alembic: mudanças de schema são editadas em `database/schema.sql` e comunicadas ao time.
+
+### Primeiro bibliotecário
+
+Criado fora da API, pelo terminal (banco no ar e `.env` configurado):
+
+```bash
+python -m scripts.criar_bibliotecario
+```
