@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.isbn import normalizar_isbn
+from app.core.isbn import isbn_equivalentes, normalizar_isbn
 from app.models import Auditoria, Emprestimo, Livro, Pessoa
 from app.schemas.livro import LivroAtualizar, LivroCriar, LivroSaida
 
@@ -54,8 +54,24 @@ def _contar(db: Session, livro_id: int, status: tuple[str, ...]) -> int:
     )
 
 
-def _para_saida(db: Session, livro: Livro) -> LivroSaida:
-    emprestados = _contar(db, livro.id, STATUS_FORA_DA_ESTANTE)
+def _contar_emprestados_em_lote(db: Session, livro_ids: list[int]) -> dict[int, int]:
+    """Empréstimos fora da estante por livro, numa única query (evita N+1 na listagem)."""
+    if not livro_ids:
+        return {}
+    linhas = db.execute(
+        select(Emprestimo.livro_id, func.count(Emprestimo.id))
+        .where(
+            Emprestimo.livro_id.in_(livro_ids),
+            Emprestimo.status_atual.in_(STATUS_FORA_DA_ESTANTE),
+        )
+        .group_by(Emprestimo.livro_id)
+    )
+    return dict(linhas.all())
+
+
+def _para_saida(db: Session, livro: Livro, emprestados: int | None = None) -> LivroSaida:
+    if emprestados is None:
+        emprestados = _contar(db, livro.id, STATUS_FORA_DA_ESTANTE)
     disponiveis, status = calcular_disponibilidade(
         livro.quantidade_total, emprestados, livro.arquivado
     )
@@ -83,10 +99,17 @@ def _buscar(db: Session, codigo: str, *, incluir_arquivados: bool = True) -> Liv
 
 
 def _isbn_em_uso(db: Session, isbn: str, ignorar_id: int | None = None) -> bool:
-    consulta = select(Livro.id).where(Livro.isbn == isbn)
+    # Considera duplicado o mesmo livro cadastrado no outro formato (ISBN-10 vs ISBN-13).
+    consulta = select(Livro.id).where(Livro.isbn.in_(isbn_equivalentes(isbn)))
     if ignorar_id is not None:
         consulta = consulta.where(Livro.id != ignorar_id)
     return db.scalars(consulta).first() is not None
+
+
+def _violou_unique_isbn(exc: IntegrityError) -> bool:
+    # Corrida entre duas requisições: só a constraint de ISBN (uq_livro_isbn) vira "duplicado".
+    constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None) or ""
+    return "isbn" in constraint
 
 
 def _auditar(
@@ -119,6 +142,8 @@ def criar_livro(db: Session, dados: LivroCriar, responsavel: Pessoa) -> LivroSai
         db.flush()
     except IntegrityError as exc:
         db.rollback()
+        if not _violou_unique_isbn(exc):
+            raise
         raise LivroDuplicadoError(dados.isbn) from exc
     db.refresh(livro)  # traz o `codigo` gerado pelo banco
 
@@ -155,7 +180,9 @@ def listar_livros(
     if not incluir_arquivados:
         consulta = consulta.where(Livro.arquivado.is_(False))
 
-    return [_para_saida(db, livro) for livro in db.scalars(consulta)]
+    livros = list(db.scalars(consulta))
+    emprestados = _contar_emprestados_em_lote(db, [livro.id for livro in livros])
+    return [_para_saida(db, livro, emprestados.get(livro.id, 0)) for livro in livros]
 
 
 def obter_livro(db: Session, codigo: str, *, incluir_arquivados: bool = False) -> LivroSaida:

@@ -10,7 +10,7 @@ Contrato das rotas (ajustar aqui e nos TODOs de `app/` se o time decidir outro):
   `POST /livros/{codigo}/arquivar`, `GET /livros/{codigo}/previa-arquivamento`.
 - Só o Bibliotecário escreve; o Leitor apenas consulta (GET) livros do catálogo.
 - 401 sem autenticação válida, 403 sem permissão, 404 inexistente (ou arquivado, para o Leitor),
-  409 para regra de negócio (`{"motivo": "..."}`), 422 para payload inválido.
+  409 para regra de negócio (`{"detail": "..."}`), 422 para payload inválido.
 """
 
 from datetime import UTC, date, datetime, timedelta

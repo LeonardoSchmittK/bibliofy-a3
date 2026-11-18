@@ -25,7 +25,7 @@ class LivroCriar(BaseModel):
     genero: Texto
     data_lancamento: date
     quantidade_total: Quantidade
-    descricao: str | None = None
+    descricao: Annotated[str, StringConstraints(strip_whitespace=True)] | None = None
 
 
 class LivroAtualizar(BaseModel):

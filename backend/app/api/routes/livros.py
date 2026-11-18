@@ -8,7 +8,6 @@ em app/api/deps.py e o serviço de auditoria em app/services/auditoria.py.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import exige_bibliotecario, usuario_autenticado  # issue #35
@@ -25,8 +24,8 @@ from app.services.livro_service import (
 router = APIRouter(prefix="/livros", tags=["livros"])
 
 
-def _conflito(motivo: str) -> JSONResponse:
-    return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"motivo": motivo})
+def _conflito(motivo: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=motivo)
 
 
 def _nao_encontrado() -> HTTPException:
@@ -46,7 +45,7 @@ def criar_livro(
     try:
         return livro_service.criar_livro(db, dados, responsavel)
     except LivroDuplicadoError:
-        return _conflito("ISBN_DUPLICADO")
+        raise _conflito("ISBN_DUPLICADO") from None
 
 
 @router.get("/", response_model=list[LivroSaida])
@@ -96,9 +95,9 @@ def atualizar_livro(
     except LivroNaoEncontradoError:
         raise _nao_encontrado() from None
     except LivroDuplicadoError:
-        return _conflito("ISBN_DUPLICADO")
+        raise _conflito("ISBN_DUPLICADO") from None
     except QuantidadeInsuficienteError:
-        return _conflito("QUANTIDADE_INSUFICIENTE")
+        raise _conflito("QUANTIDADE_INSUFICIENTE") from None
 
 
 @router.post("/{codigo}/arquivar", response_model=LivroSaida)

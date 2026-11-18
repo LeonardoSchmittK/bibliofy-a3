@@ -70,7 +70,7 @@ def test_cadastro_isbn_duplicado_mesmo_com_outra_formatacao(api, repetido):
     resp = api.post("/livros", json=payload_livro(isbn=repetido, nome="Outro título"))
 
     assert resp.status_code == 409
-    assert resp.json()["motivo"] == "ISBN_DUPLICADO"
+    assert resp.json()["detail"] == "ISBN_DUPLICADO"
 
 
 def test_cadastro_quantidade_negativa(api):
@@ -218,7 +218,7 @@ def test_edicao_nao_aceita_obrigatorio_vazio(api, acervo, campo):
 
 def test_edicao_com_isbn_de_outro_livro(api, acervo):
     resp = api.patch(f"/livros/{acervo[0].codigo}", json={"isbn": acervo[1].isbn})
-    assert (resp.status_code, resp.json()["motivo"]) == (409, "ISBN_DUPLICADO")
+    assert (resp.status_code, resp.json()["detail"]) == (409, "ISBN_DUPLICADO")
 
 
 def test_edicao_ignora_codigo_e_arquivado_enviados_no_corpo(api, db_session, acervo):
@@ -252,7 +252,7 @@ def test_edicao_nao_reduz_exemplares_abaixo_dos_emprestimos_ativos(
 
     resp = api.patch(f"/livros/{livro.codigo}", json={"quantidade_total": 1})
 
-    assert (resp.status_code, resp.json()["motivo"]) == (409, "QUANTIDADE_INSUFICIENTE")
+    assert (resp.status_code, resp.json()["detail"]) == (409, "QUANTIDADE_INSUFICIENTE")
 
 
 def test_edicao_de_livro_inexistente(api):
