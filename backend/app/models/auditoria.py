@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BIGINT, TIMESTAMP, VARCHAR, ForeignKey, func
+from sqlalchemy import BIGINT, TIMESTAMP, VARCHAR, ForeignKey, Index, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,6 +11,7 @@ from app.models.pessoa import Pessoa
 
 class Auditoria(Base):
     __tablename__ = "auditoria"
+    __table_args__ = (Index("ix_auditoria_criado_em", text("criado_em DESC"), text("id DESC")),)
 
     id: Mapped[int] = mapped_column(BIGINT, primary_key=True)
 

@@ -141,6 +141,7 @@ CREATE TABLE auditoria (
 
 CREATE INDEX ix_auditoria_entidade ON auditoria (entidade, entidade_id);
 CREATE INDEX ix_auditoria_responsavel ON auditoria (responsavel_id);
+CREATE INDEX ix_auditoria_criado_em ON auditoria (criado_em DESC, id DESC);
 
 CREATE OR REPLACE FUNCTION fn_auditoria_imutavel() RETURNS trigger AS $$
 BEGIN
