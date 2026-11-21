@@ -1,23 +1,21 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Redirect, Route, Switch, useLocation } from 'wouter'
 import { getRandomQuote } from '../shared/utils/quotes'
+import { CatalogoLivros } from '../modules/livro/pages/CatalogoLivros'
 
 const quote = getRandomQuote()
 const demoUser = { name: 'Ana Bibliotecária', email: 'demo@bibliofy.com', password: 'bibliofy123' }
 
 function TypewriterTitle({ text }: { text: string }) {
-  const [displayedText, setDisplayedText] = useState('')
-  const [isTyping, setIsTyping] = useState(true)
+  const prefersReducedMotion =
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  const [displayedText, setDisplayedText] = useState(() =>
+    prefersReducedMotion ? text : '',
+  )
+  const [isTyping, setIsTyping] = useState(!prefersReducedMotion)
 
   useEffect(() => {
-    setDisplayedText('')
-    setIsTyping(true)
-
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setDisplayedText(text)
-      setIsTyping(false)
-      return
-    }
+    if (prefersReducedMotion) return
 
     let characterIndex = 0
     const interval = window.setInterval(() => {
@@ -31,7 +29,7 @@ function TypewriterTitle({ text }: { text: string }) {
     }, 55)
 
     return () => window.clearInterval(interval)
-  }, [text])
+  }, [text, prefersReducedMotion])
 
   return (
     <h1 className="auth-title" aria-label={text}>
@@ -65,6 +63,7 @@ function AuthPage({ mode }: { mode: 'login' | 'cadastro' }) {
 
     window.localStorage.setItem('bibliofy_user', name)
     window.localStorage.setItem('access_token', `local-${Date.now()}`)
+    window.localStorage.setItem('bibliofy_role', isLogin ? 'BIBLIOTECARIO' : 'LEITOR')
     navigate('/')
   }
 
@@ -135,7 +134,7 @@ function DashboardPage() {
         </div>
         <div className="quick-actions">
           <Link href="/emprestimos/novo" className="action-card"><span className="action-plus">+</span><span>Registrar empréstimo</span></Link>
-          <Link href="/livros/cadastrar" className="action-card"><span className="action-plus">+</span><span>Adicionar livro no<br /> catálogo</span></Link>
+          <Link href="/livros?modal=cadastro" className="action-card"><span className="action-plus">+</span><span>Adicionar livro no<br /> catálogo</span></Link>
         </div>
       </section>
     </main>
@@ -154,8 +153,8 @@ export function AppRoutes() {
       <Route path="/cadastro"><AuthPage mode="cadastro" /></Route>
       <Route path="/bibliotecario"><PrivatePage><SimplePage title="Área do bibliotecário" href="/" link="Voltar ao painel" /></PrivatePage></Route>
       <Route path="/leitor"><PrivatePage><SimplePage title="Área do leitor" href="/" link="Voltar ao painel" /></PrivatePage></Route>
-      <Route path="/livros/cadastrar"><PrivatePage><SimplePage title="Adicionar livro ao catálogo" href="/livros" link="Voltar ao estoque" /></PrivatePage></Route>
-      <Route path="/livros"><PrivatePage><SimplePage title="Estoque de livros" href="/" link="Voltar ao painel" /></PrivatePage></Route>
+      <Route path="/livros/cadastrar"><PrivatePage><Redirect to="/livros?modal=cadastro" /></PrivatePage></Route>
+      <Route path="/livros"><PrivatePage><CatalogoLivros /></PrivatePage></Route>
       <Route path="/emprestimos/novo"><PrivatePage><SimplePage title="Registrar empréstimo" href="/emprestimos" link="Ver empréstimos" /></PrivatePage></Route>
       <Route path="/emprestimos"><PrivatePage><SimplePage title="Empréstimos" href="/" link="Voltar ao painel" /></PrivatePage></Route>
       <Route><SimplePage title="Página não encontrada" href="/" link="Voltar ao painel" /></Route>
