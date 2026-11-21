@@ -30,6 +30,28 @@ uvicorn app.main:app --reload
 - `GET /health` → `{"status": "ok"}`
 - Swagger em `http://localhost:8000/docs`
 
+## Execução com Docker (banco + API) e dados de demonstração
+
+```bash
+cp .env.example .env          # SEED_DEMO=true já vem ligado
+docker compose up -d --build  # sobe o PostgreSQL e a API em http://localhost:8000
+```
+
+Com `SEED_DEMO=true` a API roda `scripts/seed.py` a cada subida, criando (só se ainda não
+existirem) 2 usuários e 15 livros. O seed nunca altera nem apaga dados existentes.
+
+| Perfil        | E-mail                    | Senha            |
+| ------------- | ------------------------- | ---------------- |
+| Bibliotecário | bibliotecario@bibliofy.com | `Bibliofy@Demo1` |
+| Aluno (LEITOR) | aluno@bibliofy.com        | `Bibliofy@Demo1` |
+
+Os dados ficam no volume `pgdata` e **persistem** entre `docker compose down` / `up`
+(inclusive livros cadastrados pela plataforma). Só `docker compose down -v` apaga tudo.
+O `schema.sql` só é aplicado na primeira criação do volume: mudanças de schema exigem recriá-lo.
+Em produção, use `SEED_DEMO=false` e um `JWT_SECRET` forte.
+
+Para rodar o seed manualmente (API local): `python -m scripts.seed`.
+
 ## Testes
 
 ```bash
