@@ -1,5 +1,8 @@
+import { AppRoutes } from './routes/AppRoutes'
+import './App.css'
+
 function App() {
-  return <h1>Está rodando, funcionou!</h1>
+  return <AppRoutes />
 }
 
 export default App
