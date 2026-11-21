@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, health, usuarios
+from app.api.routes import auth, health, livros, usuarios
 from app.core.config import get_settings
 
 
@@ -16,7 +16,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(usuarios.router)
-    #   3. Confirmar em /docs que o botão "Authorize" aparece (OAuth2PasswordBearer).
+    app.include_router(livros.router)
     return app
 
 
