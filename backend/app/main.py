@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, health, livros, usuarios
+from app.api.routes import health
 from app.core.config import get_settings
 
 
@@ -14,9 +14,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health.router)
-    app.include_router(auth.router)
-    app.include_router(usuarios.router)
-    app.include_router(livros.router)
     return app
 
 
