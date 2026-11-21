@@ -61,6 +61,9 @@ jobs:
       - name: Formatação (ruff format --check)
         run: uv run ruff format --check .
 
+      - name: Guarda do banco de testes
+        run: uv run pytest tests/test_db_guard.py -v
+
       - name: Testes (pytest + cobertura)
         run: uv run pytest --cov=app --cov-report=term-missing --cov-report=xml
 
