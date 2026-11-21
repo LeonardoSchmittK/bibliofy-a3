@@ -55,15 +55,38 @@ def test_resposta_do_cadastro_nao_tem_senha_hash_nem_token(db_client, biblioteca
     assert "access_token" not in resp.text and "set-cookie" not in resp.headers
 
 
-def test_cliente_nao_escolhe_o_papel_no_cadastro(db_client, db_session, bibliotecario, cabecalho):
+def test_cadastro_pelo_bibliotecario_sem_papel_cria_leitor(
+    db_client, db_session, bibliotecario, cabecalho
+):
+    resp = db_client.post("/usuarios", json=_novo(), headers=cabecalho(bibliotecario))
+
+    assert resp.json()["papel"] == "LEITOR"
+    assert _do_banco(db_session, "2026001").papel == "LEITOR"
+
+
+def test_bibliotecario_cadastra_outro_bibliotecario(
+    db_client, db_session, bibliotecario, cabecalho
+):
     resp = db_client.post(
         "/usuarios", json=_novo(papel="BIBLIOTECARIO"), headers=cabecalho(bibliotecario)
     )
 
-    assert resp.status_code in (201, 422)  # ignorar o campo ou recusá-lo: ambos protegem
-    if resp.status_code == 201:
-        assert resp.json()["papel"] == "LEITOR"
-        assert _do_banco(db_session, "2026001").papel == "LEITOR"
+    assert resp.status_code == 201
+    assert resp.json()["papel"] == "BIBLIOTECARIO"
+    assert _do_banco(db_session, "2026001").papel == "BIBLIOTECARIO"
+
+
+def test_leitor_nao_cadastra_bibliotecario(db_client, db_session, leitor, cabecalho):
+    resp = db_client.post("/usuarios", json=_novo(papel="BIBLIOTECARIO"), headers=cabecalho(leitor))
+
+    assert resp.status_code == 403
+    assert db_session.scalars(select(Pessoa).where(Pessoa.matricula == "2026001")).first() is None
+
+
+def test_cadastro_com_papel_desconhecido_retorna_422(db_client, bibliotecario, cabecalho):
+    resp = db_client.post("/usuarios", json=_novo(papel="ADMIN"), headers=cabecalho(bibliotecario))
+
+    assert resp.status_code == 422
 
 
 def test_cadastro_nao_altera_a_sessao_de_quem_atende(db_client, bibliotecario, cabecalho):
