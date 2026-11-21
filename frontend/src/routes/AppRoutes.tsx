@@ -2,6 +2,9 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Redirect, Route, Switch, useLocation } from 'wouter'
 import { getRandomQuote } from '../shared/utils/quotes'
 import { CatalogoLivros } from '../modules/livro/pages/CatalogoLivros'
+import { EmprestimosPage } from '../modules/emprestimo/pages/EmprestimosPage'
+import { GerenciarEmprestimosPage } from '../modules/emprestimo/pages/GerenciarEmprestimosPage'
+import { useEmprestimoStore } from '../modules/emprestimo/store/emprestimoStore'
 
 const quote = getRandomQuote()
 const demoUser = { name: 'Ana Bibliotecária', email: 'demo@bibliofy.com', password: 'bibliofy123' }
@@ -107,6 +110,15 @@ function AuthPage({ mode }: { mode: 'login' | 'cadastro' }) {
 function DashboardPage() {
   const name = window.localStorage.getItem('bibliofy_user') || 'Bibliotecário'
   const firstName = name.trim().split(/\s+/)[0]
+  const [showLoanSummary, setShowLoanSummary] = useState(false)
+  const emprestimos = useEmprestimoStore((state) => state.emprestimos)
+  const emprestimosAbertos = emprestimos.filter(
+    (emprestimo) => !emprestimo.status.startsWith('DEVOLVIDO'),
+  ).length
+  const emprestimosAtrasados = emprestimos.filter(
+    (emprestimo) => emprestimo.status === 'ATRASADO',
+  ).length
+
   return (
     <main className="dashboard-page">
       <figure className="dashboard-quote"><blockquote>“{quote.text}”</blockquote><figcaption>{quote.author}</figcaption></figure>
@@ -114,8 +126,19 @@ function DashboardPage() {
         <div className="welcome-row">
           <div>
             <h1>Olá, {firstName}.</h1>
-            <p className="dashboard-subtitle">
-              <span>Gerencie aqui seus empréstimos e livros.</span>
+            <p
+              className="dashboard-subtitle"
+              tabIndex={0}
+              onMouseEnter={() => setShowLoanSummary(true)}
+              onMouseLeave={() => setShowLoanSummary(false)}
+              onFocus={() => setShowLoanSummary(true)}
+              onBlur={() => setShowLoanSummary(false)}
+            >
+              <span>
+                {showLoanSummary
+                  ? `Você tem ${emprestimosAbertos} abertos, e ${emprestimosAtrasados} atrasados.`
+                  : 'Gerencie aqui seus empréstimos e livros.'}
+              </span>
             </p>
           </div>
           <div className="stats" aria-label="Resumo da biblioteca">
@@ -123,9 +146,18 @@ function DashboardPage() {
               <span className="stat-number stat-number--green">234</span>
               <span className="stat-number stat-number--red">150</span>
             </div>
-            <div className="stat-pair stat-pair--loans" role="group" aria-label="100 empréstimos abertos e 50 em atraso" tabIndex={0}>
-              <span className="stat-number stat-number--green">100</span>
-              <span className="stat-number stat-number--red">50</span>
+            <div
+              className="stat-pair stat-pair--loans"
+              role="group"
+              aria-label={`${emprestimosAbertos} empréstimos abertos e ${emprestimosAtrasados} em atraso`}
+              tabIndex={0}
+              onMouseEnter={() => setShowLoanSummary(true)}
+              onMouseLeave={() => setShowLoanSummary(false)}
+              onFocus={() => setShowLoanSummary(true)}
+              onBlur={() => setShowLoanSummary(false)}
+            >
+              <span className="stat-number stat-number--green">{emprestimosAbertos}</span>
+              <span className="stat-number stat-number--red">{emprestimosAtrasados}</span>
             </div>
           </div>
         </div>
@@ -155,8 +187,8 @@ export function AppRoutes() {
       <Route path="/leitor"><PrivatePage><SimplePage title="Área do leitor" href="/" link="Voltar ao painel" /></PrivatePage></Route>
       <Route path="/livros/cadastrar"><PrivatePage><Redirect to="/livros?modal=cadastro" /></PrivatePage></Route>
       <Route path="/livros"><PrivatePage><CatalogoLivros /></PrivatePage></Route>
-      <Route path="/emprestimos/novo"><PrivatePage><SimplePage title="Registrar empréstimo" href="/emprestimos" link="Ver empréstimos" /></PrivatePage></Route>
-      <Route path="/emprestimos"><PrivatePage><SimplePage title="Empréstimos" href="/" link="Voltar ao painel" /></PrivatePage></Route>
+      <Route path="/emprestimos/novo"><PrivatePage><EmprestimosPage /></PrivatePage></Route>
+      <Route path="/emprestimos"><PrivatePage><GerenciarEmprestimosPage /></PrivatePage></Route>
       <Route><SimplePage title="Página não encontrada" href="/" link="Voltar ao painel" /></Route>
     </Switch>
   )
