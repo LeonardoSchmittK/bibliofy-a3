@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import auditoria, auth, health, livros, usuarios
 from app.core.config import get_settings
+from app.core.logging import instalar_logging
 
 
 def create_app() -> FastAPI:
@@ -13,6 +14,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    instalar_logging(app)
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(usuarios.router)
