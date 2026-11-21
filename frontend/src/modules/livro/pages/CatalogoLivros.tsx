@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useLocation } from 'wouter'
+import { useAuthStore } from '../../auth/store/authStore'
 import { useLivroStore } from '../store/livroStore'
 import type { Livro, LivroDados } from '../types/livro'
 
@@ -11,12 +12,6 @@ const camposVazios: LivroDados = {
   genero: 'Ficção',
   data_lancamento: '',
   quantidade_total: 1,
-}
-
-function papelPodeEditar() {
-  const papel = window.localStorage.getItem('bibliofy_role')
-  if (papel) return papel === 'BIBLIOTECARIO'
-  return window.localStorage.getItem('bibliofy_user') === 'Ana Bibliotecária'
 }
 
 function resumoData(data: string) {
@@ -32,10 +27,12 @@ function LivroForm({
   livro,
   onCancel,
   onSave,
+  salvando,
 }: {
   livro?: Livro
   onCancel?: () => void
-  onSave: (dados: LivroDados) => void
+  onSave: (dados: LivroDados) => void | Promise<void>
+  salvando: boolean
 }) {
   const [dados, setDados] = useState<LivroDados>(
     livro
@@ -146,8 +143,8 @@ function LivroForm({
             Cancelar
           </button>
         )}
-        <button type="submit" className="book-button">
-          {livro ? 'Salvar alterações' : 'Cadastrar livro'}
+        <button type="submit" className="book-button" disabled={salvando}>
+          {salvando ? 'Salvando...' : livro ? 'Salvar alterações' : 'Cadastrar livro'}
         </button>
       </div>
     </form>
@@ -159,6 +156,11 @@ export function CatalogoLivros() {
   const adicionarLivro = useLivroStore((state) => state.adicionarLivro)
   const atualizarLivro = useLivroStore((state) => state.atualizarLivro)
   const arquivarLivro = useLivroStore((state) => state.arquivarLivro)
+  const carregarLivros = useLivroStore((state) => state.carregarLivros)
+  const carregando = useLivroStore((state) => state.carregando)
+  const erro = useLivroStore((state) => state.erro)
+  const limparErro = useLivroStore((state) => state.limparErro)
+  const usuario = useAuthStore((state) => state.usuario)
   const [busca, setBusca] = useState('')
   const [generoAtivo, setGeneroAtivo] = useState('Todos')
   const [disponibilidade, setDisponibilidade] = useState('Todas')
@@ -167,7 +169,8 @@ export function CatalogoLivros() {
   const [cadastroAberto, setCadastroAberto] = useState(
     () => new URLSearchParams(window.location.search).get('modal') === 'cadastro',
   )
-  const podeEditar = papelPodeEditar()
+  const [salvando, setSalvando] = useState(false)
+  const podeEditar = usuario?.papel === 'BIBLIOTECARIO'
   const [, navigate] = useLocation()
   const ativos = useMemo(() => livros.filter((livro) => !livro.arquivado), [livros])
   const filtrados = useMemo(() => {
@@ -194,6 +197,7 @@ export function CatalogoLivros() {
     setLivroEditando(undefined)
     setLivroArquivando(undefined)
     setCadastroAberto(false)
+    limparErro()
     if (new URLSearchParams(window.location.search).has('modal')) navigate('/livros')
   }
 
@@ -215,27 +219,19 @@ export function CatalogoLivros() {
   const totalDisponiveis = ativos.reduce((total, livro) => total + livro.quantidade_disponivel, 0)
   const totalEmprestados = ativos.reduce((total, livro) => total + livro.quantidade_emprestada, 0)
 
-  function salvarEdicao(dados: LivroDados) {
+  async function salvarEdicao(dados: LivroDados) {
     if (!livroEditando) return
-    const isbnDuplicado = ativos.some(
-      (livro) => livro.codigo !== livroEditando.codigo && livro.isbn === dados.isbn,
-    )
-    if (isbnDuplicado) {
-      window.alert('Já existe um livro cadastrado com esse ISBN.')
-      return
-    }
-    atualizarLivro(livroEditando.codigo, dados)
-    fecharModal()
+    setSalvando(true)
+    const salvo = await atualizarLivro(livroEditando.codigo, dados)
+    setSalvando(false)
+    if (salvo) fecharModal()
   }
 
-  function salvarCadastro(dados: LivroDados) {
-    const isbnDuplicado = ativos.some((livro) => livro.isbn === dados.isbn)
-    if (isbnDuplicado) {
-      window.alert('Já existe um livro cadastrado com esse ISBN.')
-      return
-    }
-    adicionarLivro(dados)
-    fecharModal()
+  async function salvarCadastro(dados: LivroDados) {
+    setSalvando(true)
+    const salvo = await adicionarLivro(dados)
+    setSalvando(false)
+    if (salvo) fecharModal()
   }
 
   function arquivar(livro: Livro) {
@@ -289,11 +285,25 @@ export function CatalogoLivros() {
 
       <div className="book-catalog-layout">
         <section className="book-list" aria-label="Livros do catálogo">
-          {filtrados.length === 0 ? (
+          {erro && !modalAberto && <p className="book-api-error" role="alert">{erro}</p>}
+          {carregando && livros.length === 0 ? (
+            <div className="book-empty" role="status">Carregando livros...</div>
+          ) : erro && livros.length === 0 && !modalAberto ? (
+            <div className="book-empty">
+              <p className="book-api-error" role="alert">{erro}</p>
+              <button type="button" className="book-button" onClick={() => void carregarLivros()}>
+                Tentar novamente
+              </button>
+            </div>
+          ) : filtrados.length === 0 ? (
             <div className="book-empty">
               <span aria-hidden="true">⌕</span>
-              <h2>Nenhum livro encontrado</h2>
-              <p>Tente mudar a busca ou escolher outra categoria.</p>
+              <h2>{livros.length ? 'Nenhum livro encontrado' : 'Nenhum livro cadastrado'}</h2>
+              <p>
+                {livros.length
+                  ? 'Tente mudar a busca ou escolher outra categoria.'
+                  : 'Os livros cadastrados aparecerão aqui.'}
+              </p>
             </div>
           ) : (
             filtrados.map((livro) => (
@@ -441,6 +451,7 @@ export function CatalogoLivros() {
             <h2 id="book-modal-title">
               {livroArquivando ? 'Arquivar livro' : livroEditando ? 'Editar livro' : 'Cadastrar novo exemplar'}
             </h2>
+            {erro && <p className="book-api-error" role="alert">{erro}</p>}
             {livroArquivando ? (
               <div className="book-archive-confirmation">
                 <p>
@@ -454,12 +465,15 @@ export function CatalogoLivros() {
                   <button
                     type="button"
                     className="book-button book-button--archive"
-                    onClick={() => {
-                      arquivarLivro(livroArquivando.codigo)
-                      fecharModal()
+                    disabled={salvando}
+                    onClick={async () => {
+                      setSalvando(true)
+                      const arquivado = await arquivarLivro(livroArquivando.codigo)
+                      setSalvando(false)
+                      if (arquivado) fecharModal()
                     }}
                   >
-                    Arquivar livro
+                    {salvando ? 'Arquivando...' : 'Arquivar livro'}
                   </button>
                 </div>
               </div>
@@ -469,6 +483,7 @@ export function CatalogoLivros() {
                 livro={livroEditando}
                 onCancel={fecharModal}
                 onSave={livroEditando ? salvarEdicao : salvarCadastro}
+                salvando={salvando}
               />
             )}
           </section>

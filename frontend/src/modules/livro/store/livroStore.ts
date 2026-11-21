@@ -1,192 +1,208 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { ApiError, apiRequest } from '../../../shared/api/client'
+import { useAuthStore } from '../../auth/store/authStore'
 import type { Livro, LivroDados } from '../types/livro'
+
+interface LivroApi {
+  codigo: string
+  isbn: string
+  nome: string
+  autor: string
+  editora: string
+  genero: string
+  data_lancamento: string
+  descricao: string | null
+  quantidade_total: number
+  quantidade_disponivel: number
+  disponibilidade: 'DISPONIVEL' | 'EMPRESTADO' | 'INDISPONIVEL'
+  arquivado: boolean
+}
 
 interface LivroState {
   livros: Livro[]
-  adicionarLivro: (dados: LivroDados) => void
-  atualizarLivro: (codigo: string, dados: LivroDados) => void
-  arquivarLivro: (codigo: string) => void
+  carregando: boolean
+  carregado: boolean
+  erro: string | null
+  limparErro: () => void
+  carregarLivros: () => Promise<void>
+  adicionarLivro: (dados: LivroDados) => Promise<boolean>
+  atualizarLivro: (codigo: string, dados: LivroDados) => Promise<boolean>
+  arquivarLivro: (codigo: string) => Promise<boolean>
   emprestarExemplar: (codigo: string) => boolean
   devolverExemplar: (codigo: string) => boolean
 }
 
-const livrosExemplo: Livro[] = [
-  {
-    codigo: 'liv_00000001',
-    isbn: '9788491050296',
-    nome: 'Dom Quixote',
-    autor: 'Miguel de Cervantes',
-    editora: 'Penguin Companhia',
-    genero: 'Ficção',
-    data_lancamento: '1605-01-16',
-    quantidade_total: 180,
-    quantidade_disponivel: 166,
-    quantidade_emprestada: 14,
-    arquivado: false,
-  },
-  {
-    codigo: 'liv_00000002',
-    isbn: '9788522031443',
-    nome: 'O Pequeno Príncipe',
-    autor: 'Antoine de Saint-Exupéry',
-    editora: 'Agir',
-    genero: 'Infantil',
-    data_lancamento: '1943-04-06',
-    quantidade_total: 100,
-    quantidade_disponivel: 89,
-    quantidade_emprestada: 11,
-    arquivado: false,
-  },
-  {
-    codigo: 'liv_00000003',
-    isbn: '9788501029467',
-    nome: 'A Hora da Estrela',
-    autor: 'Clarice Lispector',
-    editora: 'Rocco',
-    genero: 'Ficção',
-    data_lancamento: '1977-10-26',
-    quantidade_total: 70,
-    quantidade_disponivel: 60,
-    quantidade_emprestada: 10,
-    arquivado: false,
-  },
-  {
-    codigo: 'liv_00000004',
-    isbn: '9786555320352',
-    nome: 'O Alquimista',
-    autor: 'Paulo Coelho',
-    editora: 'Paralela',
-    genero: 'Ficção',
-    data_lancamento: '1988-01-01',
-    quantidade_total: 40,
-    quantidade_disponivel: 40,
-    quantidade_emprestada: 0,
-    arquivado: false,
-  },
-  {
-    codigo: 'liv_00000005',
-    isbn: '9788535910663',
-    nome: 'Memórias Póstumas',
-    autor: 'Machado de Assis',
-    editora: 'Companhia das Letras',
-    genero: 'Clássico',
-    data_lancamento: '1881-01-01',
-    quantidade_total: 35,
-    quantidade_disponivel: 35,
-    quantidade_emprestada: 0,
-    arquivado: false,
-  },
-  {
-    codigo: 'liv_00000006',
-    isbn: '9788532522529',
-    nome: 'O Código da Vinci',
-    autor: 'Dan Brown',
-    editora: 'Sextante',
-    genero: 'Suspense',
-    data_lancamento: '2003-03-18',
-    quantidade_total: 32,
-    quantidade_disponivel: 32,
-    quantidade_emprestada: 0,
-    arquivado: false,
-  },
-]
-
-function criarLivro(dados: LivroDados, codigo: string): Livro {
+export function mapearLivroApi(livro: LivroApi): Livro {
   return {
-    ...dados,
-    codigo,
-    quantidade_disponivel: Math.max(dados.quantidade_total, 0),
-    quantidade_emprestada: 0,
-    arquivado: false,
+    codigo: livro.codigo,
+    isbn: livro.isbn,
+    nome: livro.nome,
+    autor: livro.autor,
+    editora: livro.editora,
+    genero: livro.genero,
+    data_lancamento: livro.data_lancamento,
+    descricao: livro.descricao,
+    quantidade_total: livro.quantidade_total,
+    quantidade_disponivel: livro.quantidade_disponivel,
+    quantidade_emprestada: Math.max(
+      livro.quantidade_total - livro.quantidade_disponivel,
+      0,
+    ),
+    arquivado: livro.arquivado,
   }
 }
 
-export const useLivroStore = create<LivroState>()(
-  persist(
-    (set) => ({
-      livros: livrosExemplo,
-      adicionarLivro: (dados) =>
-        set((state) => ({
-          livros: [...state.livros, criarLivro(dados, `liv_${Date.now().toString(36)}`)],
-        })),
-      atualizarLivro: (codigo, dados) =>
-        set((state) => ({
-          livros: state.livros.map((livro) =>
-            livro.codigo === codigo
-              ? {
-                  ...livro,
-                  ...dados,
-                  quantidade_disponivel: Math.max(
-                    dados.quantidade_total - livro.quantidade_emprestada,
-                    0,
-                  ),
-                }
-              : livro,
-          ),
-        })),
-      arquivarLivro: (codigo) =>
-        set((state) => ({
-          livros: state.livros.map((livro) =>
-            livro.codigo === codigo ? { ...livro, arquivado: true } : livro,
-          ),
-        })),
-      emprestarExemplar: (codigo) => {
-        let emprestado = false
-        set((state) => ({
-          livros: state.livros.map((livro) => {
-            if (
-              livro.codigo !== codigo ||
-              livro.arquivado ||
-              livro.quantidade_disponivel <= 0
-            ) {
-              return livro
-            }
-            emprestado = true
-            return {
-              ...livro,
-              quantidade_disponivel: livro.quantidade_disponivel - 1,
-              quantidade_emprestada: livro.quantidade_emprestada + 1,
-            }
-          }),
-        }))
-        return emprestado
-      },
-      devolverExemplar: (codigo) => {
-        let devolvido = false
-        set((state) => ({
-          livros: state.livros.map((livro) => {
-            if (livro.codigo !== codigo) return livro
+function obterToken(): string {
+  const token = useAuthStore.getState().accessToken
+  if (!token) throw new ApiError('Sua sessão expirou. Entre novamente.', 401)
+  return token
+}
 
-            devolvido = true
-            return {
-              ...livro,
-              quantidade_disponivel: Math.min(
-                livro.quantidade_disponivel + 1,
-                livro.quantidade_total,
-              ),
-              quantidade_emprestada: Math.max(livro.quantidade_emprestada - 1, 0),
-            }
-          }),
-        }))
-        return devolvido
-      },
-    }),
-    {
-      name: 'bibliofy-livros',
-      merge: (persistedState, currentState) => {
-        const savedState = persistedState as Partial<LivroState> | undefined
-        const savedBooks = Array.isArray(savedState?.livros) ? savedState.livros : []
-        const savedCodes = new Set(savedBooks.map((livro) => livro.codigo))
-        return {
-          ...currentState,
-          ...savedState,
-          livros: [
-            ...savedBooks,
-            ...currentState.livros.filter((livro) => !savedCodes.has(livro.codigo)),
-          ],
+function mensagemErro(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return 'Sua sessão expirou. Entre novamente.'
+    if (error.message === 'ISBN_DUPLICADO') {
+      return 'Já existe um livro cadastrado com esse ISBN.'
+    }
+    if (error.message === 'QUANTIDADE_INSUFICIENTE') {
+      return 'A quantidade total não pode ser menor que os exemplares emprestados.'
+    }
+    if (error.message.toLocaleLowerCase('pt-BR').includes('isbn inválido')) {
+      return 'ISBN inválido. Verifique o número e tente novamente.'
+    }
+    return error.message
+  }
+  if (error instanceof Error) return error.message
+  return 'Não foi possível concluir a operação com os livros.'
+}
+
+function registrarErro(error: unknown, set: (partial: Partial<LivroState>) => void) {
+  set({ erro: mensagemErro(error) })
+  if (error instanceof ApiError && error.status === 401) {
+    useAuthStore.getState().sair()
+  }
+}
+
+export const useLivroStore = create<LivroState>((set) => ({
+  livros: [],
+  carregando: false,
+  carregado: false,
+  erro: null,
+  limparErro: () => set({ erro: null }),
+  carregarLivros: async () => {
+    set({ carregando: true, erro: null })
+    try {
+      const resposta = await apiRequest<LivroApi[]>('/livros/', {
+        token: obterToken(),
+      })
+      set({ livros: resposta.map(mapearLivroApi), carregado: true, erro: null })
+    } catch (error) {
+      registrarErro(error, set)
+    } finally {
+      set({ carregando: false })
+    }
+  },
+  adicionarLivro: async (dados) => {
+    set({ erro: null })
+    try {
+      const criado = await apiRequest<LivroApi>('/livros/', {
+        method: 'POST',
+        token: obterToken(),
+        body: dados,
+      })
+      set((state) => ({
+        livros: [...state.livros, mapearLivroApi(criado)],
+        erro: null,
+      }))
+      return true
+    } catch (error) {
+      registrarErro(error, set)
+      return false
+    }
+  },
+  atualizarLivro: async (codigo, dados) => {
+    set({ erro: null })
+    try {
+      const atualizado = await apiRequest<LivroApi>(
+        `/livros/${encodeURIComponent(codigo)}`,
+        {
+          method: 'PATCH',
+          token: obterToken(),
+          body: dados,
+        },
+      )
+      set((state) => ({
+        livros: state.livros.map((livro) =>
+          livro.codigo === codigo ? mapearLivroApi(atualizado) : livro,
+        ),
+        erro: null,
+      }))
+      return true
+    } catch (error) {
+      registrarErro(error, set)
+      return false
+    }
+  },
+  arquivarLivro: async (codigo) => {
+    set({ erro: null })
+    try {
+      const arquivado = await apiRequest<LivroApi>(
+        `/livros/${encodeURIComponent(codigo)}/arquivar`,
+        {
+          method: 'POST',
+          token: obterToken(),
+        },
+      )
+      set((state) => ({
+        livros: state.livros.map((livro) =>
+          livro.codigo === codigo ? mapearLivroApi(arquivado) : livro,
+        ),
+        erro: null,
+      }))
+      return true
+    } catch (error) {
+      registrarErro(error, set)
+      return false
+    }
+  },
+  emprestarExemplar: (codigo) => {
+    let emprestado = false
+    set((state) => ({
+      livros: state.livros.map((livro) => {
+        if (
+          livro.codigo !== codigo ||
+          livro.arquivado ||
+          livro.quantidade_disponivel <= 0
+        ) {
+          return livro
         }
-      },
-    },
-  ),
-)
+        emprestado = true
+        return {
+          ...livro,
+          quantidade_disponivel: livro.quantidade_disponivel - 1,
+          quantidade_emprestada: livro.quantidade_emprestada + 1,
+        }
+      }),
+    }))
+    return emprestado
+  },
+  devolverExemplar: (codigo) => {
+    let devolvido = false
+    set((state) => ({
+      livros: state.livros.map((livro) => {
+        if (livro.codigo !== codigo) return livro
+
+        devolvido = true
+        return {
+          ...livro,
+          quantidade_disponivel: Math.min(
+            livro.quantidade_disponivel + 1,
+            livro.quantidade_total,
+          ),
+          quantidade_emprestada: Math.max(livro.quantidade_emprestada - 1, 0),
+        }
+      }),
+    }))
+    return devolvido
+  },
+}))
