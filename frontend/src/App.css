@@ -68,6 +68,36 @@
 
 .dashboard-page { min-height: 100vh; position: relative; isolation: isolate; display: flex; flex-direction: column; }
 .dashboard-page::before { content: ''; position: absolute; inset: 0; z-index: -1; background: rgba(252,244,226,.06); }
+.session-exit-header {
+  position: fixed;
+  z-index: 20;
+  top: -56px;
+  left: 16px;
+  width: 150px;
+  height: 72px;
+  border-radius: 0 0 12px 12px;
+  transition: top .2s ease, background .2s ease, box-shadow .2s ease;
+}
+.session-exit-header:hover,
+.session-exit-header:focus-within,
+.session-exit-header--open {
+  top: 0;
+  background: rgba(255, 250, 239, .96);
+  box-shadow: 0 8px 24px rgba(76, 53, 27, .14);
+}
+.session-exit-button {
+  position: absolute;
+  top: 18px;
+  left: 12px;
+  padding: 8px 16px;
+  color: #684d2f;
+  background: rgba(255, 249, 235, .7);
+  border: 1px solid rgba(117, 88, 51, .2);
+  border-radius: 4px;
+  font: 12px 'DM Sans', sans-serif;
+  cursor: pointer;
+}
+.session-exit-button:hover { background: #fff9eb; }
 .dashboard-topbar { display: none; }
 .dashboard-brand { display: flex; align-items: center; gap: 11px; text-decoration: none; font: 500 20px 'Playfair Display', Georgia, serif; letter-spacing: -.03em; }
 .dashboard-brand .brand-mark { width: 32px; height: 32px; }
@@ -83,24 +113,6 @@
 .welcome-row h1 { color: #4c3925; font-size: clamp(32px, 4vw, 42px); letter-spacing: -.04em; }
 .dashboard-subtitle { margin-top: 7px; color: #806d55; font-size: 14px; }
 .dashboard-subtitle { white-space: nowrap; }
-.welcome-row:has(.stat-pair--books:hover) .dashboard-subtitle span,
-.welcome-row:has(.stat-pair--books:focus-within) .dashboard-subtitle span {
-  font-size: 0;
-}
-.welcome-row:has(.stat-pair--books:hover) .dashboard-subtitle span::after,
-.welcome-row:has(.stat-pair--books:focus-within) .dashboard-subtitle span::after {
-  content: '234 livros em estoque, e 150 emprestados.';
-  font-size: 14px;
-}
-.welcome-row:has(.stat-pair--loans:hover) .dashboard-subtitle span,
-.welcome-row:has(.stat-pair--loans:focus-within) .dashboard-subtitle span {
-  font-size: 0;
-}
-.welcome-row:has(.stat-pair--loans:hover) .dashboard-subtitle span::after,
-.welcome-row:has(.stat-pair--loans:focus-within) .dashboard-subtitle span::after {
-  content: '100 empréstimos abertos, e 50 em atraso.';
-  font-size: 14px;
-}
 .management-row { display: flex; align-items: center; gap: 18px; margin: 27px 0 11px; }
 .stats { position: absolute; top: 14px; left: 360px; display: flex; justify-content: flex-start; width: 146px; gap: 18px; padding: 0 2px 4px; }
 .stat-pair { position: relative; width: 64px; height: 45px; cursor: default; }
@@ -115,6 +127,22 @@
 .management-links a:hover span, .management-links a:focus-visible span { opacity: 1; }
 .management-links a:first-child { white-space: nowrap; }
 .quick-actions { display: flex; gap: 16px; }
+.dashboard-load-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  color: #963c2f;
+  font-size: 12px;
+}
+.dashboard-load-error button {
+  padding: 5px 8px;
+  color: #684d2f;
+  background: transparent;
+  border: 1px solid #bba27c;
+  border-radius: 4px;
+  cursor: pointer;
+}
 .action-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; width: 240px; height: 190px; background: rgba(255, 248, 231, .83); border: 1px solid rgba(119,87,49,.14); color: #60492d; text-align: center; text-decoration: none; font: 14px/1.4 'Playfair Display', Georgia, serif; box-shadow: 0 12px 32px rgba(74,48,19,.09); transition: transform .2s, background .2s, box-shadow .2s; }
 .action-card:hover { transform: translateY(-4px); background: rgba(255,251,240,.94); box-shadow: 0 16px 36px rgba(74,48,19,.14); }
 .action-plus { color: #533b20; font: 300 42px/1 'DM Sans', sans-serif; }
@@ -459,6 +487,9 @@
 .book-empty > span { color: #a17b48; font-size: 28px; }
 .book-empty h2 { margin-top: 8px; font-size: 19px; }
 .book-empty p { margin-top: 6px; color: #806d55; font-size: 12px; }
+.book-api-error { margin: 0 0 12px; color: #963c2f; font-size: 12px; }
+.book-button:disabled,
+.auth-form button:disabled { opacity: .65; cursor: wait; }
 .book-modal-backdrop {
   position: fixed;
   z-index: 20;
@@ -523,6 +554,7 @@
   .book-sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .book-card { padding: 13px; }
   .book-card-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 .loan-page {
   position: relative;
@@ -1047,6 +1079,7 @@
   .loan-filters { grid-template-columns: 1fr; gap: 10px; }
   .loan-filter-interval { max-width: 400px; }
 }
+@media (max-width: 700px) {
   .book-modal { padding: 22px 16px; }
   .book-form-grid { grid-template-columns: 1fr; }
   .book-form-isbn { grid-column: auto; }

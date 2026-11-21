@@ -1,13 +1,53 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useState,
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react'
 import { Link, Redirect, Route, Switch, useLocation } from 'wouter'
 import { getRandomQuote } from '../shared/utils/quotes'
+import { useAuthStore } from '../modules/auth/store/authStore'
+import { useLivroStore } from '../modules/livro/store/livroStore'
 import { CatalogoLivros } from '../modules/livro/pages/CatalogoLivros'
 import { EmprestimosPage } from '../modules/emprestimo/pages/EmprestimosPage'
 import { GerenciarEmprestimosPage } from '../modules/emprestimo/pages/GerenciarEmprestimosPage'
 import { useEmprestimoStore } from '../modules/emprestimo/store/emprestimoStore'
 
 const quote = getRandomQuote()
-const demoUser = { name: 'Ana Bibliotecária', email: 'demo@bibliofy.com', password: 'bibliofy123' }
+const COUNT_UP_DURATION_MS = 650
+
+function useCountUp(target: number): number {
+  const prefersReducedMotion =
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  const [animation, setAnimation] = useState(() => ({
+    target,
+    value: prefersReducedMotion ? target : 0,
+  }))
+
+  useEffect(() => {
+    if (prefersReducedMotion || target === 0) return
+    let startedAt: number | null = null
+    let frameId = 0
+    function animate(timestamp: number) {
+      if (startedAt === null) startedAt = timestamp
+      const progress = Math.min((timestamp - startedAt) / COUNT_UP_DURATION_MS, 1)
+      setAnimation({ target, value: Math.round(target * (1 - (1 - progress) ** 3)) })
+      if (progress < 1) frameId = window.requestAnimationFrame(animate)
+    }
+
+    frameId = window.requestAnimationFrame(animate)
+    return () => window.cancelAnimationFrame(frameId)
+  }, [prefersReducedMotion, target])
+
+  if (prefersReducedMotion) return target
+  return animation.target === target ? animation.value : 0
+}
+
+function isExitDrawerTarget(target: EventTarget | null): boolean {
+  return target instanceof Element
+    && Boolean(target.closest('.session-exit-header, .dashboard-quote figcaption, .loan-quote figcaption'))
+}
 
 function TypewriterTitle({ text }: { text: string }) {
   const prefersReducedMotion =
@@ -43,31 +83,77 @@ function TypewriterTitle({ text }: { text: string }) {
 }
 
 function PrivatePage({ children }: { children: ReactNode }) {
-  return window.localStorage.getItem('access_token') ? children : <Redirect to="/cadastro" />
+  const estado = useAuthStore((state) => state.estado)
+  const erro = useAuthStore((state) => state.erro)
+  const inicializarSessao = useAuthStore((state) => state.inicializarSessao)
+  const [exitDrawerOpen, setExitDrawerOpen] = useState(false)
+  const sair = useAuthStore((state) => state.sair)
+  const carregarLivros = useLivroStore((state) => state.carregarLivros)
+  const livrosCarregados = useLivroStore((state) => state.carregado)
+
+  useEffect(() => {
+    void inicializarSessao()
+  }, [inicializarSessao])
+
+  useEffect(() => {
+    if (estado === 'authenticated' && !livrosCarregados) void carregarLivros()
+  }, [carregarLivros, estado, livrosCarregados])
+
+  if (estado === 'checking') {
+    return <main className="simple-page" role="status">Verificando sessão...</main>
+  }
+  if (estado === 'error') {
+    return (
+      <main className="simple-page">
+        <p role="alert">{erro || 'Não foi possível validar sua sessão.'}</p>
+        <button type="button" onClick={() => void inicializarSessao()}>Tentar novamente</button>
+      </main>
+    )
+  }
+  if (estado !== 'authenticated') return <Redirect to="/login" />
+
+  return (
+    <div
+      className="private-page-shell"
+      onPointerOver={(event: ReactPointerEvent<HTMLDivElement>) => {
+        if (isExitDrawerTarget(event.target)) setExitDrawerOpen(true)
+      }}
+      onPointerLeave={() => setExitDrawerOpen(false)}
+    >
+      <header
+        className={`session-exit-header${exitDrawerOpen ? ' session-exit-header--open' : ''}`}
+        aria-label="Ações da sessão"
+      >
+        <button type="button" className="session-exit-button" onClick={sair}>
+          Sair
+        </button>
+      </header>
+      {children}
+    </div>
+  )
 }
 
 function AuthPage({ mode }: { mode: 'login' | 'cadastro' }) {
-  const [message, setMessage] = useState('')
+  const erro = useAuthStore((state) => state.erro)
+  const carregandoLogin = useAuthStore((state) => state.carregandoLogin)
+  const entrar = useAuthStore((state) => state.entrar)
+  const limparErro = useAuthStore((state) => state.limparErro)
+  const estado = useAuthStore((state) => state.estado)
   const [, navigate] = useLocation()
   const isLogin = mode === 'login'
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const values = new FormData(event.currentTarget)
     const email = String(values.get('email') ?? '').trim()
     const password = String(values.get('senha') ?? '')
-    if (isLogin && (email !== demoUser.email || password !== demoUser.password)) {
-      setMessage('Email ou senha incorretos. Use as credenciais de demonstração abaixo.')
-      return
-    }
-    const name = isLogin
-      ? demoUser.name
-      : String(values.get('nome') ?? '').trim()
+    limparErro()
+    if (await entrar(email, password)) navigate('/')
+  }
 
-    window.localStorage.setItem('bibliofy_user', name)
-    window.localStorage.setItem('access_token', `local-${Date.now()}`)
-    window.localStorage.setItem('bibliofy_role', isLogin ? 'BIBLIOTECARIO' : 'LEITOR')
-    navigate('/')
+  if (estado === 'authenticated') return <Redirect to="/" />
+  if (estado === 'checking') {
+    return <main className="simple-page" role="status">Verificando sessão...</main>
   }
 
   return (
@@ -78,46 +164,82 @@ function AuthPage({ mode }: { mode: 'login' | 'cadastro' }) {
       </figure>
       <section className="auth-card">
         <TypewriterTitle text={isLogin ? 'Que bom ter você de volta.' : 'Criar sua conta'} />
-        <p className="auth-intro">{isLogin ? 'Acesse sua conta para continuar.' : 'Preencha seus dados para começar.'}</p>
+        <p className="auth-intro">
+          {isLogin
+            ? 'Acesse sua conta para continuar.'
+            : 'Para criar uma conta, solicite o cadastro a um bibliotecário.'}
+        </p>
         <nav className="auth-tabs" aria-label="Autenticação">
           <Link href="/login" aria-current={isLogin ? 'page' : undefined} className={isLogin ? 'active' : undefined}>Entrar</Link>
           <Link href="/cadastro" aria-current={!isLogin ? 'page' : undefined} className={!isLogin ? 'active' : undefined}>Criar conta</Link>
         </nav>
-        <form className="auth-form" onSubmit={handleSubmit}>
-          {!isLogin && <>
-            <label htmlFor="nome">Seu nome</label>
-            <input id="nome" name="nome" type="text" placeholder="Como podemos chamar você?" autoComplete="name" required />
-            <label htmlFor="matricula">Matrícula</label>
-            <input id="matricula" name="matricula" type="text" placeholder="Digite sua matrícula" required />
-          </>}
-          <label htmlFor="email">Email</label>
-          <input id="email" name="email" type="email" placeholder="voce@exemplo.com" autoComplete="email" required />
-          {!isLogin && <>
-            <label htmlFor="telefone">Telefone <span>(opcional)</span></label>
-            <input id="telefone" name="telefone" type="tel" placeholder="(00) 00000-0000" autoComplete="tel" />
-          </>}
-          <label htmlFor="senha">Senha</label>
-          <input id="senha" name="senha" type="password" placeholder="Mínimo de 8 caracteres" autoComplete={isLogin ? 'current-password' : 'new-password'} required />
-          {message && <p className="auth-message" role="status">{message}</p>}
-          <button type="submit">{isLogin ? 'Entrar na biblioteca' : 'Criar minha conta'} <span aria-hidden="true">→</span></button>
-        </form>
-        <p className="auth-footnote">Ao continuar, você concorda com os termos de uso da Bibliofy.</p>
+        {isLogin ? (
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="voce@exemplo.com"
+              autoComplete="email"
+              required
+              onChange={limparErro}
+            />
+            <label htmlFor="senha">Senha</label>
+            <input
+              id="senha"
+              name="senha"
+              type="password"
+              placeholder="Sua senha"
+              autoComplete="current-password"
+              required
+              onChange={limparErro}
+            />
+            {erro && <p className="auth-message" role="alert">{erro}</p>}
+            <button type="submit" disabled={carregandoLogin}>
+              {carregandoLogin ? 'Entrando...' : 'Entrar na biblioteca'} <span aria-hidden="true">→</span>
+            </button>
+          </form>
+        ) : (
+          <p className="auth-message" role="status">
+            O cadastro público ainda não está disponível. Peça ao bibliotecário para criar sua conta.
+          </p>
+        )}
+        {isLogin && <p className="auth-footnote">Ao continuar, você concorda com os termos de uso da Bibliofy.</p>}
       </section>
     </main>
   )
 }
 
 function DashboardPage() {
-  const name = window.localStorage.getItem('bibliofy_user') || 'Bibliotecário'
+  const usuario = useAuthStore((state) => state.usuario)
+  const name = usuario?.nome || 'Bibliotecário'
   const firstName = name.trim().split(/\s+/)[0]
   const [showLoanSummary, setShowLoanSummary] = useState(false)
+  const [showBookSummary, setShowBookSummary] = useState(false)
   const emprestimos = useEmprestimoStore((state) => state.emprestimos)
+  const livros = useLivroStore((state) => state.livros)
+  const carregarLivros = useLivroStore((state) => state.carregarLivros)
+  const livrosErro = useLivroStore((state) => state.erro)
+  const livrosAtivos = livros.filter((livro) => !livro.arquivado)
+  const exemplaresDisponiveis = livrosAtivos.reduce(
+    (total, livro) => total + livro.quantidade_disponivel,
+    0,
+  )
+  const exemplaresEmprestados = livrosAtivos.reduce(
+    (total, livro) => total + livro.quantidade_emprestada,
+    0,
+  )
   const emprestimosAbertos = emprestimos.filter(
     (emprestimo) => !emprestimo.status.startsWith('DEVOLVIDO'),
   ).length
   const emprestimosAtrasados = emprestimos.filter(
     (emprestimo) => emprestimo.status === 'ATRASADO',
   ).length
+  const exemplaresDisponiveisAnimados = useCountUp(exemplaresDisponiveis)
+  const exemplaresEmprestadosAnimados = useCountUp(exemplaresEmprestados)
+  const emprestimosAbertosAnimados = useCountUp(emprestimosAbertos)
+  const emprestimosAtrasadosAnimados = useCountUp(emprestimosAtrasados)
 
   return (
     <main className="dashboard-page">
@@ -136,15 +258,26 @@ function DashboardPage() {
             >
               <span>
                 {showLoanSummary
-                  ? `Você tem ${emprestimosAbertos} abertos, e ${emprestimosAtrasados} atrasados.`
-                  : 'Gerencie aqui seus empréstimos e livros.'}
+                  ? `Você tem ${emprestimosAbertos} empréstimos abertos e ${emprestimosAtrasados} atrasados.`
+                  : showBookSummary
+                    ? `${exemplaresDisponiveis} exemplares disponíveis e ${exemplaresEmprestados} emprestados.`
+                    : 'Gerencie aqui seus empréstimos e livros.'}
               </span>
             </p>
           </div>
           <div className="stats" aria-label="Resumo da biblioteca">
-            <div className="stat-pair stat-pair--books" role="group" aria-label="234 livros em estoque e 150 emprestados" tabIndex={0}>
-              <span className="stat-number stat-number--green">234</span>
-              <span className="stat-number stat-number--red">150</span>
+            <div
+              className="stat-pair stat-pair--books"
+              role="group"
+              aria-label={`${exemplaresDisponiveis} exemplares disponíveis e ${exemplaresEmprestados} emprestados`}
+              tabIndex={0}
+              onMouseEnter={() => setShowBookSummary(true)}
+              onMouseLeave={() => setShowBookSummary(false)}
+              onFocus={() => setShowBookSummary(true)}
+              onBlur={() => setShowBookSummary(false)}
+            >
+              <span className="stat-number stat-number--green">{exemplaresDisponiveisAnimados}</span>
+              <span className="stat-number stat-number--red">{exemplaresEmprestadosAnimados}</span>
             </div>
             <div
               className="stat-pair stat-pair--loans"
@@ -156,14 +289,20 @@ function DashboardPage() {
               onFocus={() => setShowLoanSummary(true)}
               onBlur={() => setShowLoanSummary(false)}
             >
-              <span className="stat-number stat-number--green">{emprestimosAbertos}</span>
-              <span className="stat-number stat-number--red">{emprestimosAtrasados}</span>
+              <span className="stat-number stat-number--green">{emprestimosAbertosAnimados}</span>
+              <span className="stat-number stat-number--red">{emprestimosAtrasadosAnimados}</span>
             </div>
           </div>
         </div>
         <div className="management-row">
           <div className="management-links"><Link href="/emprestimos">Gerenciar empréstimos <span>↗</span></Link><Link href="/livros">Gerenciar estoque <span>↗</span></Link></div>
         </div>
+        {livrosErro && (
+          <div className="dashboard-load-error" role="alert">
+            <p>Não foi possível carregar o resumo do acervo: {livrosErro}</p>
+            <button type="button" onClick={() => void carregarLivros()}>Tentar novamente</button>
+          </div>
+        )}
         <div className="quick-actions">
           <Link href="/emprestimos/novo" className="action-card"><span className="action-plus">+</span><span>Registrar empréstimo</span></Link>
           <Link href="/livros?modal=cadastro" className="action-card"><span className="action-plus">+</span><span>Adicionar livro no<br /> catálogo</span></Link>

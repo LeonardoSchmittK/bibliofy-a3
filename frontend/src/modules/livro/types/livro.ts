@@ -6,6 +6,7 @@ export interface Livro {
   editora: string
   genero: string
   data_lancamento: string
+  descricao?: string | null
   quantidade_total: number
   quantidade_disponivel: number
   quantidade_emprestada: number

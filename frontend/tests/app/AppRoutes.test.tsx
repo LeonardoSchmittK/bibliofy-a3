@@ -1,14 +1,92 @@
 
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
-import { describe, it, expect, afterEach } from 'vitest'
+import { render, screen, cleanup, fireEvent, act, waitFor } from '@testing-library/react'
+import { beforeEach, describe, it, expect, afterEach, vi } from 'vitest'
 import { AppRoutes } from '../../src/routes/AppRoutes'
 import { useEmprestimoStore } from '../../src/modules/emprestimo/store/emprestimoStore'
 import { useLeitorStore } from '../../src/modules/leitor/store/leitorStore'
 import { useLivroStore } from '../../src/modules/livro/store/livroStore'
+import { useAuthStore } from '../../src/modules/auth/store/authStore'
+import type { Livro } from '../../src/modules/livro/types/livro'
+import type { UsuarioAutenticado } from '../../src/modules/auth/types/auth'
 
 const emprestimosIniciais = useEmprestimoStore.getState().emprestimos
 const leitoresIniciais = useLeitorStore.getState().leitores
 const livrosIniciais = useLivroStore.getState().livros
+const livrosTeste: Livro[] = [
+  {
+    codigo: 'liv_00000001',
+    isbn: '9788491050296',
+    nome: 'Dom Quixote',
+    autor: 'Miguel de Cervantes',
+    editora: 'Penguin Companhia',
+    genero: 'Ficção',
+    data_lancamento: '1605-01-16',
+    quantidade_total: 180,
+    quantidade_disponivel: 166,
+    quantidade_emprestada: 14,
+    arquivado: false,
+  },
+  {
+    codigo: 'liv_00000002',
+    isbn: '9788522031443',
+    nome: 'O Pequeno Príncipe',
+    autor: 'Antoine de Saint-Exupéry',
+    editora: 'Agir',
+    genero: 'Infantil',
+    data_lancamento: '1943-04-06',
+    quantidade_total: 100,
+    quantidade_disponivel: 89,
+    quantidade_emprestada: 11,
+    arquivado: false,
+  },
+]
+
+function autenticar(papel: UsuarioAutenticado['papel'] = 'BIBLIOTECARIO') {
+  window.sessionStorage.setItem('access_token', 'test-token')
+  useAuthStore.setState({
+    accessToken: 'test-token',
+    usuario: {
+      codigo: 'usr_test',
+      matricula: 'test',
+      nome: papel === 'BIBLIOTECARIO' ? 'Ana Bibliotecária' : 'Leitor Teste',
+      email: 'teste@bibliofy.com',
+      telefone: null,
+      papel,
+      ativo: true,
+    },
+    estado: 'authenticated',
+    erro: null,
+  })
+  useLivroStore.setState({ livros: livrosTeste, carregado: true, erro: null })
+}
+
+function respostaApi(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => body === undefined ? '' : JSON.stringify(body),
+  } as Response
+}
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.endsWith('/auth/login')) return respostaApi({ access_token: 'test-token', token_type: 'bearer' })
+    if (url.endsWith('/auth/me')) {
+      return respostaApi({
+        codigo: 'usr_test',
+        matricula: 'test',
+        nome: 'Ana Bibliotecária',
+        email: 'teste@bibliofy.com',
+        telefone: null,
+        papel: 'BIBLIOTECARIO',
+        ativo: true,
+      })
+    }
+    if (url.includes('/livros/')) return respostaApi([])
+    return respostaApi({ detail: 'Rota não encontrada' }, 404)
+  }))
+})
 
 function dataISO(data: Date): string {
   return [
@@ -27,8 +105,17 @@ afterEach(() => {
   cleanup()
   useEmprestimoStore.setState({ emprestimos: emprestimosIniciais, impedimentos: [] })
   useLeitorStore.setState({ leitores: leitoresIniciais })
-  useLivroStore.setState({ livros: livrosIniciais })
+  useLivroStore.setState({ livros: livrosIniciais, carregado: false, carregando: false, erro: null })
   window.localStorage.clear()
+  window.sessionStorage.clear()
+  useAuthStore.setState({
+    accessToken: null,
+    usuario: null,
+    estado: 'unauthenticated',
+    carregandoLogin: false,
+    erro: null,
+  })
+  vi.unstubAllGlobals()
   window.history.replaceState({}, '', '/')
 })
 
@@ -37,9 +124,9 @@ describe('Rotas do Bibliofy', () => {
     window.history.replaceState({}, '', '/login')
     render(<AppRoutes />)
 
-    expect(screen.getByLabelText(/qual seu email/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/qual sua senha/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /acessar/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/senha/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /entrar na biblioteca/i })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /voltar ao início/i })).not.toBeInTheDocument()
   })
 
@@ -47,35 +134,111 @@ describe('Rotas do Bibliofy', () => {
     window.history.replaceState({}, '', '/cadastro')
     render(<AppRoutes />)
 
-    expect(screen.getByLabelText(/qual seu nome/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/qual sua matrícula/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /cadastrar/i })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(/cadastro público ainda não está disponível/i)
+    expect(screen.queryByLabelText(/matrícula/i)).not.toBeInTheDocument()
+  })
+
+  it('autentica com a API e abre o painel', async () => {
+    window.history.replaceState({}, '', '/login')
+    render(<AppRoutes />)
+
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'ana@bibliofy.com' },
+    })
+    fireEvent.change(screen.getByLabelText(/senha/i), {
+      target: { value: 'senha-segura' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /entrar na biblioteca/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /olá, ana/i })).toBeInTheDocument()
+    })
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/auth/login'),
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.any(URLSearchParams),
+      }),
+    )
+    expect(window.sessionStorage.getItem('access_token')).toBe('test-token')
   })
 
   it('redireciona para login quando a pessoa não está autenticada', () => {
     window.history.replaceState({}, '', '/')
     render(<AppRoutes />)
 
-    expect(screen.getByLabelText(/qual seu email/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
   })
 
   it('redireciona rotas privadas para login sem sessão', () => {
     window.history.replaceState({}, '', '/livros')
     render(<AppRoutes />)
 
-    expect(screen.getByLabelText(/qual seu email/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
   })
 
   it('permite acesso às rotas privadas com token de sessão', () => {
-    window.localStorage.setItem('access_token', 'test-token')
+    autenticar()
     window.history.replaceState({}, '', '/livros')
     render(<AppRoutes />)
 
-    expect(screen.getByRole('heading', { name: /repositório de livros/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /catálogo de livros/i })).toBeInTheDocument()
+  })
+
+  it('anima as estatísticas da tela inicial de zero até os valores reais', () => {
+    const frames: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frames.push(callback)
+      return frames.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    autenticar()
+    window.history.replaceState({}, '', '/')
+    render(<AppRoutes />)
+
+    const estatisticasLivros = screen.getByRole('group', {
+      name: '255 exemplares disponíveis e 25 emprestados',
+    })
+    const lerValores = () =>
+      Array.from(estatisticasLivros.querySelectorAll('.stat-number'), (item) => item.textContent)
+
+    expect(lerValores()).toEqual(['0', '0'])
+
+    act(() => {
+      frames.splice(0).forEach((frame) => frame(0))
+      frames.splice(0).forEach((frame) => frame(700))
+    })
+
+    expect(lerValores()).toEqual(['255', '25'])
+  })
+
+  it('abre o drawer de sair ao passar pelo autor da citação', () => {
+    autenticar()
+    window.history.replaceState({}, '', '/emprestimos/novo')
+    render(<AppRoutes />)
+
+    const header = screen.getByRole('banner', { name: 'Ações da sessão' })
+    const linhaDoAutor = document.querySelector('.loan-quote figcaption')
+    if (!linhaDoAutor) throw new Error('A linha do autor da citação não foi renderizada.')
+
+    fireEvent.pointerOver(linhaDoAutor)
+
+    expect(header).toHaveClass('session-exit-header--open')
+  })
+
+  it('encerra a sessão pelo botão de sair do cabeçalho oculto', () => {
+    autenticar()
+    window.history.replaceState({}, '', '/livros')
+    render(<AppRoutes />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sair' }))
+
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
+    expect(window.sessionStorage.getItem('access_token')).toBeNull()
   })
 
   it('permite acesso à área do bibliotecário com token de sessão', () => {
-    window.localStorage.setItem('access_token', 'test-token')
+    autenticar()
     window.history.replaceState({}, '', '/bibliotecario')
     render(<AppRoutes />)
 
@@ -83,7 +246,7 @@ describe('Rotas do Bibliofy', () => {
   })
 
   it('exibe a gestão de empréstimos com filtros por status, id e intervalo', () => {
-    window.localStorage.setItem('access_token', 'test-token')
+    autenticar()
     window.history.replaceState({}, '', '/emprestimos')
     render(<AppRoutes />)
 
@@ -96,7 +259,7 @@ describe('Rotas do Bibliofy', () => {
   })
 
   it('seleciona exemplar e leitor, confirma e abre a gestão', () => {
-    window.localStorage.setItem('access_token', 'test-token')
+    autenticar()
     window.history.replaceState({}, '', '/emprestimos/novo')
     render(<AppRoutes />)
 
@@ -117,7 +280,7 @@ describe('Rotas do Bibliofy', () => {
   })
 
   it('explica a regra de impedimento no modal de penalidades', () => {
-    window.localStorage.setItem('access_token', 'test-token')
+    autenticar()
     window.history.replaceState({}, '', '/emprestimos/novo')
     render(<AppRoutes />)
 
@@ -130,7 +293,7 @@ describe('Rotas do Bibliofy', () => {
   })
 
   it('registra a devolução atrasada, cria o impedimento e atualiza o estoque', () => {
-    window.localStorage.setItem('access_token', 'test-token')
+    autenticar()
     window.history.replaceState({}, '', '/emprestimos')
     render(<AppRoutes />)
 
@@ -214,27 +377,27 @@ describe('Rotas do Bibliofy', () => {
   })
 
   it('volta do registro de empréstimo para a tela inicial', () => {
-    window.localStorage.setItem('access_token', 'test-token')
+    autenticar()
     window.history.replaceState({}, '', '/emprestimos/novo')
     render(<AppRoutes />)
 
     fireEvent.click(screen.getByRole('link', { name: /voltar para a tela inicial/i }))
 
-    expect(screen.getByRole('heading', { name: /olá, bibliotecário/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /olá, ana/i })).toBeInTheDocument()
   })
 
   it('volta da gestão de empréstimos para a tela inicial', () => {
-    window.localStorage.setItem('access_token', 'test-token')
+    autenticar()
     window.history.replaceState({}, '', '/emprestimos')
     render(<AppRoutes />)
 
     fireEvent.click(screen.getByRole('link', { name: /voltar para a tela inicial/i }))
 
-    expect(screen.getByRole('heading', { name: /olá, bibliotecário/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /olá, ana/i })).toBeInTheDocument()
   })
 
   it('filtra empréstimos por id do livro e respeita o intervalo de início', () => {
-    window.localStorage.setItem('access_token', 'test-token')
+    autenticar()
     window.history.replaceState({}, '', '/emprestimos')
     render(<AppRoutes />)
 
