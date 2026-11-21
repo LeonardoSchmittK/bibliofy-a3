@@ -130,12 +130,78 @@ describe('Rotas do Bibliofy', () => {
     expect(screen.queryByRole('link', { name: /voltar ao início/i })).not.toBeInTheDocument()
   })
 
-  it('deve navegar para Cadastro', async () => {
+  it('exibe o formulário de cadastro público', async () => {
     window.history.replaceState({}, '', '/cadastro')
     render(<AppRoutes />)
 
-    expect(screen.getByRole('status')).toHaveTextContent(/cadastro público ainda não está disponível/i)
-    expect(screen.queryByLabelText(/matrícula/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/nome/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/matrícula/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/senha/i)).toBeInTheDocument()
+  })
+
+  it('cria a conta pela API e orienta o usuário a entrar', async () => {
+    window.history.replaceState({}, '', '/cadastro')
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/auth/registro')) {
+        return respostaApi({
+          codigo: 'cus_00000001',
+          matricula: '2026001',
+          nome: 'Ana Souza',
+          email: 'ana@escola.edu',
+          telefone: null,
+          papel: 'LEITOR',
+          ativo: true,
+        }, 201)
+      }
+      return respostaApi({ detail: 'Rota não encontrada' }, 404)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<AppRoutes />)
+
+    fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: 'Ana Souza' } })
+    fireEvent.change(screen.getByLabelText(/matrícula/i), { target: { value: '2026001' } })
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'ana@escola.edu' } })
+    fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: 'senha-segura' } })
+    fireEvent.click(screen.getByRole('button', { name: /criar conta/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/conta criada/i)
+    expect(screen.getByRole('link', { name: /entre com seu e-mail e senha/i })).toHaveAttribute(
+      'href',
+      '/login',
+    )
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/auth/registro'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          nome: 'Ana Souza',
+          matricula: '2026001',
+          email: 'ana@escola.edu',
+          telefone: null,
+          senha: 'senha-segura',
+        }),
+      }),
+    )
+  })
+
+  it('mostra o erro da API quando o cadastro falha', async () => {
+    window.history.replaceState({}, '', '/cadastro')
+    vi.stubGlobal('fetch', vi.fn(async () => respostaApi(
+      { detail: 'E-mail ou matrícula já cadastrados' },
+      409,
+    )))
+    render(<AppRoutes />)
+
+    fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: 'Ana Souza' } })
+    fireEvent.change(screen.getByLabelText(/matrícula/i), { target: { value: '2026001' } })
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'ana@escola.edu' } })
+    fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: 'senha-segura' } })
+    fireEvent.click(screen.getByRole('button', { name: /criar conta/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'E-mail ou matrícula já cadastrados',
+    )
   })
 
   it('autentica com a API e abre o painel', async () => {
@@ -211,6 +277,32 @@ describe('Rotas do Bibliofy', () => {
 
     expect(lerValores()).toEqual(['255', '25'])
   })
+
+  it('mostra ao leitor o estoque, sem ações ou estatísticas de empréstimo', () => {
+    autenticar('LEITOR')
+    window.history.replaceState({}, '', '/')
+    render(<AppRoutes />)
+
+    expect(screen.getByRole('link', { name: /ver estoque/i })).toHaveAttribute('href', '/livros')
+    expect(screen.queryByRole('link', { name: /gerenciar empréstimos/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /registrar empréstimo/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /adicionar livro/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /empréstimos abertos/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /exemplares disponíveis e .* emprestados/i }))
+      .toBeInTheDocument()
+  })
+
+  it.each(['/emprestimos', '/emprestimos/novo'])(
+    'redireciona leitor que tenta acessar %s',
+    (path) => {
+      autenticar('LEITOR')
+      window.history.replaceState({}, '', path)
+      render(<AppRoutes />)
+
+      expect(screen.getByRole('heading', { name: 'Olá, Leitor.' })).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: /empréstimo/i })).not.toBeInTheDocument()
+    },
+  )
 
   it('abre o drawer de sair ao passar pelo autor da citação', () => {
     autenticar()

@@ -118,11 +118,20 @@ describe('Catálogo de livros', () => {
     expect(screen.getByRole('heading', { name: 'Catálogo de Livros' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /cadastrar livro/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /editar livro disponível/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /arquivar livro disponível/i })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /indisponíveis/i }))
 
     expect(screen.getByRole('heading', { name: 'Livro indisponível' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Livro disponível' })).not.toBeInTheDocument()
+  })
+
+  it('não abre o modal de cadastro por URL para leitor', () => {
+    window.history.replaceState({}, '', '/livros?modal=cadastro')
+    render(<AppRoutes />)
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Catálogo de Livros' })).toBeInTheDocument()
   })
 
   it('abre o formulário de edição em um modal para bibliotecário', async () => {

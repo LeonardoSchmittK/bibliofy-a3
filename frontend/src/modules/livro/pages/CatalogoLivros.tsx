@@ -161,16 +161,16 @@ export function CatalogoLivros() {
   const erro = useLivroStore((state) => state.erro)
   const limparErro = useLivroStore((state) => state.limparErro)
   const usuario = useAuthStore((state) => state.usuario)
+  const podeEditar = usuario?.papel === 'BIBLIOTECARIO'
   const [busca, setBusca] = useState('')
   const [generoAtivo, setGeneroAtivo] = useState('Todos')
   const [disponibilidade, setDisponibilidade] = useState('Todas')
   const [livroEditando, setLivroEditando] = useState<Livro>()
   const [livroArquivando, setLivroArquivando] = useState<Livro>()
   const [cadastroAberto, setCadastroAberto] = useState(
-    () => new URLSearchParams(window.location.search).get('modal') === 'cadastro',
+    () => podeEditar && new URLSearchParams(window.location.search).get('modal') === 'cadastro',
   )
   const [salvando, setSalvando] = useState(false)
-  const podeEditar = usuario?.papel === 'BIBLIOTECARIO'
   const [, navigate] = useLocation()
   const ativos = useMemo(() => livros.filter((livro) => !livro.arquivado), [livros])
   const filtrados = useMemo(() => {
@@ -191,7 +191,7 @@ export function CatalogoLivros() {
     () => ['Todos', ...new Set(ativos.map((livro) => livro.genero))],
     [ativos],
   )
-  const modalAberto = Boolean(livroEditando || livroArquivando || cadastroAberto)
+  const modalAberto = podeEditar && Boolean(livroEditando || livroArquivando || cadastroAberto)
 
   function fecharModal() {
     setLivroEditando(undefined)
@@ -426,7 +426,7 @@ export function CatalogoLivros() {
         </aside>
       </div>
 
-      {modalAberto && (
+      {podeEditar && modalAberto && (
         <div
           className="book-modal-backdrop"
           onMouseDown={(event) => {
