@@ -11,7 +11,12 @@ from starlette import status
 
 from app.api.deps import Bibliotecario, UsuarioAtual
 from app.db.session import get_db
-from app.schemas.usuario import PapelAlterar, UsuarioAtualizar, UsuarioCriar, UsuarioSaida
+from app.schemas.usuario import (
+    PapelAlterar,
+    UsuarioAtualizar,
+    UsuarioCriarPorOperador,
+    UsuarioSaida,
+)
 from app.services import usuario_service
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
@@ -24,9 +29,9 @@ def _nao_encontrado() -> HTTPException:
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=UsuarioSaida)
-def criar(dados: UsuarioCriar, operador: Bibliotecario, db: DB):
+def criar(dados: UsuarioCriarPorOperador, operador: Bibliotecario, db: DB):
     try:
-        return usuario_service.criar_usuario(db, dados, operador)
+        return usuario_service.criar_usuario(db, dados, operador, dados.papel)
     except usuario_service.ConflitoError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="E-mail ou matrícula já cadastrados"

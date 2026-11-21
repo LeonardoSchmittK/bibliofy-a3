@@ -141,6 +141,23 @@ CREATE TABLE auditoria (
 
 CREATE INDEX ix_auditoria_entidade ON auditoria (entidade, entidade_id);
 CREATE INDEX ix_auditoria_responsavel ON auditoria (responsavel_id);
+CREATE INDEX ix_auditoria_criado_em ON auditoria (criado_em DESC, id DESC);
+
+CREATE OR REPLACE FUNCTION fn_auditoria_imutavel() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'auditoria é imutável' USING ERRCODE = 'restrict_violation';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Impede UPDATE e DELETE.
+CREATE TRIGGER tg_auditoria_imutavel
+    BEFORE UPDATE OR DELETE ON auditoria
+    FOR EACH ROW EXECUTE FUNCTION fn_auditoria_imutavel();
+
+-- Impede TRUNCATE (que não dispara triggers por linha).
+CREATE TRIGGER tg_auditoria_sem_truncate
+    BEFORE TRUNCATE ON auditoria
+    FOR EACH STATEMENT EXECUTE FUNCTION fn_auditoria_imutavel();
 
 -- Disponibilidade = quantidade_total - exemplares emprestados ou perdidos (atributo derivado).
 CREATE VIEW vw_livro_disponibilidade AS

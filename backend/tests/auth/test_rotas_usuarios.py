@@ -55,15 +55,100 @@ def test_resposta_do_cadastro_nao_tem_senha_hash_nem_token(db_client, biblioteca
     assert "access_token" not in resp.text and "set-cookie" not in resp.headers
 
 
-def test_cliente_nao_escolhe_o_papel_no_cadastro(db_client, db_session, bibliotecario, cabecalho):
+def test_cadastro_pelo_bibliotecario_sem_papel_cria_leitor(
+    db_client, db_session, bibliotecario, cabecalho
+):
+    resp = db_client.post("/usuarios", json=_novo(), headers=cabecalho(bibliotecario))
+
+    assert resp.json()["papel"] == "LEITOR"
+    assert _do_banco(db_session, "2026001").papel == "LEITOR"
+
+
+def test_bibliotecario_cadastra_outro_bibliotecario(
+    db_client, db_session, bibliotecario, cabecalho
+):
     resp = db_client.post(
         "/usuarios", json=_novo(papel="BIBLIOTECARIO"), headers=cabecalho(bibliotecario)
     )
 
-    assert resp.status_code in (201, 422)  # ignorar o campo ou recusá-lo: ambos protegem
-    if resp.status_code == 201:
-        assert resp.json()["papel"] == "LEITOR"
-        assert _do_banco(db_session, "2026001").papel == "LEITOR"
+    assert resp.status_code == 201
+    assert resp.json()["papel"] == "BIBLIOTECARIO"
+    assert _do_banco(db_session, "2026001").papel == "BIBLIOTECARIO"
+
+
+def test_leitor_nao_cadastra_bibliotecario(db_client, db_session, leitor, cabecalho):
+    resp = db_client.post("/usuarios", json=_novo(papel="BIBLIOTECARIO"), headers=cabecalho(leitor))
+
+    assert resp.status_code == 403
+    assert db_session.scalars(select(Pessoa).where(Pessoa.matricula == "2026001")).first() is None
+
+
+def test_cadastro_com_papel_desconhecido_retorna_422(db_client, bibliotecario, cabecalho):
+    resp = db_client.post("/usuarios", json=_novo(papel="ADMIN"), headers=cabecalho(bibliotecario))
+
+    assert resp.status_code == 422
+
+
+# --- cadastro público de leitor (/auth/registro) ---------------------------------------------
+
+
+def test_registro_publico_cria_leitor_sem_autenticacao(db_client, db_session):
+    resp = db_client.post("/auth/registro", json=_novo())
+
+    assert resp.status_code == 201
+    assert (resp.json()["papel"], resp.json()["ativo"]) == ("LEITOR", True)
+    assert "senha" not in resp.text and "argon2" not in resp.text
+    assert _do_banco(db_session, "2026001").senha_hash.startswith("$argon2id$")
+
+
+def test_registro_publico_ignora_papel_enviado(db_client, db_session):
+    resp = db_client.post("/auth/registro", json=_novo(papel="BIBLIOTECARIO"))
+
+    assert resp.status_code == 201
+    assert resp.json()["papel"] == "LEITOR"
+    assert _do_banco(db_session, "2026001").papel == "LEITOR"
+
+
+def test_registro_publico_permite_login_com_a_senha_definida(db_client, login):
+    db_client.post("/auth/registro", json=_novo())
+
+    assert login("ana@escola.edu", "senha-da-ana-123").status_code == 200
+
+
+@pytest.mark.parametrize("duplicado", [{"email": "ANA@escola.edu"}, {"matricula": "2026001"}])
+def test_registro_publico_duplicado_retorna_409(db_client, duplicado):
+    db_client.post("/auth/registro", json=_novo())
+
+    unicos = {"matricula": "2026002", "email": "outra@escola.edu"}
+    outro = _novo(nome="Outra", **{**unicos, **duplicado})
+    resp = db_client.post("/auth/registro", json=outro)
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "E-mail ou matrícula já cadastrados"
+
+
+@pytest.mark.parametrize("campo", ["nome", "matricula", "email", "senha"])
+def test_registro_publico_exige_campos_obrigatorios(db_client, campo):
+    corpo = _novo()
+    del corpo[campo]
+
+    assert db_client.post("/auth/registro", json=corpo).status_code == 422
+
+
+def test_registro_publico_recusa_email_invalido(db_client):
+    assert db_client.post("/auth/registro", json=_novo(email="nao-e-email")).status_code == 422
+
+
+def test_registro_publico_e_auditado_com_o_proprio_cadastrado(db_client, db_session):
+    db_client.post("/auth/registro", json=_novo())
+
+    pessoa = _do_banco(db_session, "2026001")
+    (reg,) = db_session.scalars(
+        select(Auditoria).where(Auditoria.acao == "CADASTRO", Auditoria.entidade_id == pessoa.id,
+                                Auditoria.entidade == "PESSOA")
+    ).all()  # fmt: skip
+    assert reg.responsavel_id == pessoa.id
+    assert "senha" not in str(reg.dados or {}).lower()
 
 
 def test_cadastro_nao_altera_a_sessao_de_quem_atende(db_client, bibliotecario, cabecalho):
