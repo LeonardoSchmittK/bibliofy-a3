@@ -14,8 +14,8 @@ from app.api.deps import UsuarioAtual
 from app.db.session import get_db
 from app.models import Pessoa
 from app.schemas.auth import TokenSaida
-from app.schemas.usuario import UsuarioSaida
-from app.services import auth_service
+from app.schemas.usuario import UsuarioCriar, UsuarioSaida
+from app.services import auth_service, usuario_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -33,6 +33,17 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return TokenSaida(access_token=auth_service.emitir_token(pessoa))
+
+
+@router.post("/registro", status_code=status.HTTP_201_CREATED, response_model=UsuarioSaida)
+def registro(dados: UsuarioCriar, db: Annotated[Session, Depends(get_db)]) -> Pessoa:
+    """Cadastro público de leitor: o papel é sempre LEITOR, definido pelo servidor."""
+    try:
+        return usuario_service.criar_usuario(db, dados)
+    except usuario_service.ConflitoError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="E-mail ou matrícula já cadastrados"
+        ) from None
 
 
 @router.get("/me", response_model=UsuarioSaida)
