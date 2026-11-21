@@ -1,35 +1,51 @@
-"""Registro básico de auditoria (RNF10 / SEC05), gravado na mesma transação da operação.
+"""Camada "Service": escrita do log de auditoria (RNF10 / SEC05)."""
 
-Testes que devem passar: as verificações de `Auditoria` em tests/auth/test_rotas_usuarios.py.
-"""
-
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import Auditoria, Pessoa
+from app.models.auditoria import Auditoria
+from app.models.pessoa import Pessoa
 
-# TODO(#35) Passo a passo da implementação:
-#   1. `registrar(db, *, responsavel, acao, entidade, entidade_id, dados=None) -> Auditoria`:
-#      cria `Auditoria(responsavel_id=responsavel.id, ...)`, faz `db.add(...)` e `db.flush()`.
-#      NÃO fazer commit aqui: o registro precisa entrar na mesma transação da operação auditada.
-#   2. Valores aceitos pelo banco (CHECK em database/schema.sql): ações CADASTRO, ALTERACAO,
-#      ARQUIVAMENTO, EMPRESTIMO, RENOVACAO, DEVOLUCAO, PERDA, BLOQUEIO; entidades PESSOA, LIVRO,
-#      EMPRESTIMO, BLOQUEIO.
-#   3. Sanitizar `dados` antes de gravar: remover (em qualquer nível) as chaves `senha`,
-#      `senha_hash` e `access_token`. Nunca guardar senha, hash ou token na auditoria.
-#   4. Cadastro de usuário: acao="CADASTRO", entidade="PESSOA", dados com os campos cadastrais.
-#      Mudança de papel: acao="ALTERACAO", entidade="PESSOA", dados={"papel": {"antes", "depois"}}.
+# Iguais aos CHECKs de database/schema.sql.
+ACOES = (
+    "CADASTRO",
+    "ALTERACAO",
+    "ARQUIVAMENTO",
+    "EMPRESTIMO",
+    "RENOVACAO",
+    "DEVOLUCAO",
+    "PERDA",
+    "BLOQUEIO",
+)
+ENTIDADES = ("PESSOA", "LIVRO", "EMPRESTIMO", "BLOQUEIO")
 
-_CHAVES_PROIBIDAS = {"senha", "senha_hash", "access_hash"}
+_CHAVES_PROIBIDAS = {"senha", "senha_hash", "access_token"}
 
 
-def _sanitizar(valor: Any) -> Any:
+class AuditoriaInvalidaError(ValueError):
+    pass
+
+
+def _limpar(valor: Any) -> Any:
     if isinstance(valor, dict):
-        return {k: _sanitizar(v) for k, v in valor.items() if k not in _CHAVES_PROIBIDAS}
-    if isinstance(valor, list):
-        return [_sanitizar(v) for v in valor]
-    return valor
+        return {k: _limpar(v) for k, v in valor.items() if k not in _CHAVES_PROIBIDAS}
+    if isinstance(valor, (list, tuple)):
+        return [_limpar(v) for v in valor]
+    if valor is None or isinstance(valor, (str, int, float, bool)):
+        return valor
+    if isinstance(valor, (date, datetime, Decimal)):
+        return str(valor)
+    return str(valor)
+
+
+def sanitizar_dados(dados: dict | None) -> dict | None:
+    """Cópia sem senha/senha_hash/access_token em qualquer nível; tipos não JSON viram str."""
+    if dados is None:
+        return None
+    return _limpar(dados)
 
 
 def registrar(
@@ -39,15 +55,22 @@ def registrar(
     acao: str,
     entidade: str,
     entidade_id: int,
-    dados: dict[str, Any] | None = None,
+    dados: dict | None = None,
 ) -> Auditoria:
+    """Grava um registro na transação corrente (flush, nunca commit)."""
+    if acao not in ACOES:
+        raise AuditoriaInvalidaError(f"Ação inválida: {acao!r}")
+    if entidade not in ENTIDADES:
+        raise AuditoriaInvalidaError(f"Entidade inválida: {entidade!r}")
+
     registro = Auditoria(
         responsavel_id=responsavel.id,
         acao=acao,
         entidade=entidade,
         entidade_id=entidade_id,
-        dados=_sanitizar(dados) if dados is not None else None,
+        dados=sanitizar_dados(dados),
     )
     db.add(registro)
     db.flush()
+    db.refresh(registro, attribute_names=["criado_em"])
     return registro

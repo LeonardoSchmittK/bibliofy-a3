@@ -17,6 +17,12 @@ class UsuarioCriar(BaseModel):
     senha: SecretStr = Field(min_length=1)
 
 
+class UsuarioCriarPorOperador(UsuarioCriar):
+    """Cadastro feito por um bibliotecário: ele escolhe o papel (padrão LEITOR)."""
+
+    papel: Literal["LEITOR", "BIBLIOTECARIO"] = "LEITOR"
+
+
 class UsuarioSaida(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     codigo: str

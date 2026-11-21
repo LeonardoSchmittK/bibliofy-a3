@@ -75,7 +75,13 @@ def _buscar_por_codigo(db: Session, codigo: str) -> Pessoa:
     return pessoa
 
 
-def criar_usuario(db: Session, dados: UsuarioCriar, operador: Pessoa) -> Pessoa:
+def criar_usuario(
+    db: Session, dados: UsuarioCriar, operador: Pessoa | None = None, papel: str = "LEITOR"
+) -> Pessoa:
+    """Cria um usuário. Sem `operador` (cadastro público) o papel é sempre LEITOR e o
+    próprio cadastrado é o responsável na auditoria."""
+    if operador is None:
+        papel = "LEITOR"
     if _existe_duplicado(db, email=dados.email, matricula=dados.matricula):
         raise ConflitoError
     pessoa = Pessoa(
@@ -84,7 +90,7 @@ def criar_usuario(db: Session, dados: UsuarioCriar, operador: Pessoa) -> Pessoa:
         email=dados.email,
         telefone=dados.telefone,
         senha_hash=hash_senha(dados.senha.get_secret_value()),
-        papel="LEITOR",
+        papel=papel,
         ativo=True,
     )
     try:
@@ -95,11 +101,11 @@ def criar_usuario(db: Session, dados: UsuarioCriar, operador: Pessoa) -> Pessoa:
         raise ConflitoError from None
     auditoria.registrar(
         db,
-        responsavel=operador,
+        responsavel=operador or pessoa,
         acao="CADASTRO",
         entidade="PESSOA",
         entidade_id=pessoa.id,
-        dados=_dados_cadastrais(pessoa),
+        dados={**_dados_cadastrais(pessoa), "papel": pessoa.papel},
     )
     db.commit()
     return pessoa
