@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'wouter'
 import { getRandomQuote } from '../../../shared/utils/quotes'
+import { useAuthStore } from '../../auth/store/authStore'
 import {
   obterFimImpedimentoAtivo,
   useEmprestimoStore,
@@ -16,23 +17,12 @@ const nomesStatus: Record<EmprestimoStatus, string> = {
   ATRASADO: 'Fora do prazo',
   DEVOLVIDO: 'Devolvido',
   DEVOLVIDO_COM_ATRASO: 'Devolvido com atraso',
+  PERDIDO: 'Perdido',
 }
 
 function formatarData(data: string): string {
   const [ano, mes, dia] = data.split('-').map(Number)
   return new Intl.DateTimeFormat('pt-BR').format(new Date(ano, mes - 1, dia))
-}
-
-function formatarDataISO(data: Date): string {
-  return [
-    data.getFullYear(),
-    String(data.getMonth() + 1).padStart(2, '0'),
-    String(data.getDate()).padStart(2, '0'),
-  ].join('-')
-}
-
-function dataHoje(): string {
-  return formatarDataISO(new Date())
 }
 
 function inicioDoAno(): string {
@@ -44,8 +34,17 @@ function fimDoAno(): string {
 }
 
 export function GerenciarEmprestimosPage() {
-  const emprestimos = useEmprestimoStore((state) => state.emprestimos)
+  const usuario = useAuthStore((state) => state.usuario)
+  const isBibliotecario = usuario?.papel === 'BIBLIOTECARIO'
+  const emprestimosArmazenados = useEmprestimoStore((state) => state.emprestimos)
+  const carregadoPara = useEmprestimoStore((state) => state.carregadoPara)
+  const emprestimos = carregadoPara === usuario?.codigo ? emprestimosArmazenados : []
+  const carregando = useEmprestimoStore((state) => state.carregando)
+  const erro = useEmprestimoStore((state) => state.erro)
+  const carregarEmprestimos = useEmprestimoStore((state) => state.carregarEmprestimos)
   const registrarDevolucao = useEmprestimoStore((state) => state.registrarDevolucao)
+  const renovarEmprestimo = useEmprestimoStore((state) => state.renovarEmprestimo)
+  const salvando = useEmprestimoStore((state) => state.salvando)
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>('TODOS')
   const [busca, setBusca] = useState('')
   const [dataInicial, setDataInicial] = useState(inicioDoAno)
@@ -60,7 +59,9 @@ export function GerenciarEmprestimosPage() {
         statusFiltro === 'TODOS' || emprestimo.status === statusFiltro
       const buscaCorresponde =
         !termo ||
-        [String(emprestimo.id), emprestimo.codigo, emprestimo.livroId]
+        [String(emprestimo.id), emprestimo.codigo, emprestimo.livroId,
+          emprestimo.livroNome, emprestimo.livroIsbn ?? '', emprestimo.leitorId,
+          emprestimo.leitorNome, emprestimo.dataEmprestimo]
           .some((identificador) => identificador.toLocaleLowerCase('pt-BR').includes(termo))
       const dataCorresponde =
         !intervaloInvalido &&
@@ -70,34 +71,39 @@ export function GerenciarEmprestimosPage() {
     })
   }, [busca, dataFinal, dataInicial, emprestimos, intervaloInvalido, statusFiltro])
 
-  function devolverEmprestimo(emprestimo: Emprestimo) {
-    const livro = useLivroStore
-      .getState()
-      .livros.find((item) => item.codigo === emprestimo.livroId)
-    if (!livro) {
-      setMensagemAcao('Não foi possível registrar a devolução: o livro não foi encontrado no acervo.')
+  async function devolverEmprestimo(emprestimo: Emprestimo) {
+    if (!(await registrarDevolucao(emprestimo.codigo))) {
+      setMensagemAcao('')
       return
     }
 
-    if (!registrarDevolucao(emprestimo.id)) {
-      setMensagemAcao('Este empréstimo já foi encerrado ou não está mais disponível para devolução.')
-      return
-    }
+    await useLivroStore.getState().carregarLivros()
 
-    useLivroStore.getState().devolverExemplar(emprestimo.livroId)
-
-    if (dataHoje() > emprestimo.dataDevolucao) {
+    if (
+      useEmprestimoStore.getState().emprestimos.find((item) => item.codigo === emprestimo.codigo)
+        ?.status === 'DEVOLVIDO_COM_ATRASO'
+    ) {
       const fimImpedimento = obterFimImpedimentoAtivo(
         useEmprestimoStore.getState().impedimentos,
         emprestimo.leitorId,
       )
       setMensagemAcao(
-          `Devolução atrasada registrada. O leitor ficará impedido de realizar novos empréstimos até ${fimImpedimento ? formatarData(fimImpedimento) : 'o fim do período'}.`,
+        `Devolução atrasada registrada. O leitor ficará impedido de realizar novos empréstimos até ${
+          fimImpedimento ? formatarData(fimImpedimento) : 'o fim do período'
+        }.`,
       )
       return
     }
 
     setMensagemAcao('Devolução registrada com sucesso.')
+  }
+
+  async function renovar(emprestimo: Emprestimo) {
+    if (!(await renovarEmprestimo(emprestimo.codigo))) {
+      setMensagemAcao('')
+      return
+    }
+    setMensagemAcao('Empréstimo renovado por mais 25 dias.')
   }
 
   return (
@@ -110,8 +116,12 @@ export function GerenciarEmprestimosPage() {
       <section className="loan-management-content">
         <header className="loan-management-header">
           <Link href="/" className="loan-home-link">← Voltar para a tela inicial</Link>
-          <h1>Gerir empréstimos</h1>
-          <p>Aqui é possível filtrar e acompanhar cada empréstimo.</p>
+          <h1>{isBibliotecario ? 'Gerir empréstimos' : 'Meus empréstimos'}</h1>
+          <p>
+            {isBibliotecario
+              ? 'Aqui é possível filtrar e acompanhar cada empréstimo.'
+              : 'Acompanhe os seus empréstimos e renove aqueles que ainda estão no prazo.'}
+          </p>
         </header>
 
         <section className="loan-management-panel" aria-label="Filtros e empréstimos">
@@ -128,6 +138,7 @@ export function GerenciarEmprestimosPage() {
                 <option value="ATRASADO">Fora do prazo</option>
                 <option value="DEVOLVIDO">Devolvido</option>
                 <option value="DEVOLVIDO_COM_ATRASO">Devolvido com atraso</option>
+                <option value="PERDIDO">Perdido</option>
               </select>
             </label>
 
@@ -197,17 +208,36 @@ export function GerenciarEmprestimosPage() {
                       </span>
                     </td>
                     <td>
-                      {emprestimo.status.startsWith('DEVOLVIDO') ? (
+                      {emprestimo.status.startsWith('DEVOLVIDO') ||
+                      emprestimo.status === 'PERDIDO' ? (
                         '—'
                       ) : (
-                        <button
-                          type="button"
-                          className="book-button loan-return-button"
-                          aria-label={`Registrar devolução do empréstimo ${emprestimo.codigo}`}
-                          onClick={() => devolverEmprestimo(emprestimo)}
-                        >
-                          Registrar devolução
-                        </button>
+                        <span className="loan-row-actions">
+                          {emprestimo.status === 'EM_ANDAMENTO' && !emprestimo.renovado && (
+                            <button
+                              type="button"
+                              className="book-button book-button--secondary loan-return-button"
+                              aria-label={`Renovar empréstimo ${emprestimo.codigo}`}
+                              onClick={() => void renovar(emprestimo)}
+                              disabled={salvando}
+                            >
+                              Renovar
+                            </button>
+                          )}
+                          {isBibliotecario && (
+                            <button
+                              type="button"
+                              className="book-button loan-return-button"
+                              aria-label={`Registrar devolução do empréstimo ${emprestimo.codigo}`}
+                              onClick={() => void devolverEmprestimo(emprestimo)}
+                              disabled={salvando}
+                            >
+                              Registrar devolução
+                            </button>
+                          )}
+                          {!isBibliotecario &&
+                            (emprestimo.status !== 'EM_ANDAMENTO' || emprestimo.renovado) && '—'}
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -215,7 +245,9 @@ export function GerenciarEmprestimosPage() {
                 {emprestimosFiltrados.length === 0 && (
                   <tr>
                     <td className="loan-table-empty" colSpan={7}>
-                      {intervaloInvalido
+                      {carregando
+                        ? 'Carregando empréstimos...'
+                        : intervaloInvalido
                         ? 'A data inicial deve ser anterior à data final.'
                         : 'Nenhum empréstimo encontrado para esses filtros.'}
                     </td>
@@ -226,6 +258,14 @@ export function GerenciarEmprestimosPage() {
           </div>
           {mensagemAcao && (
             <p className="loan-action-message" role="status">{mensagemAcao}</p>
+          )}
+          {erro && (
+            <p className="loan-action-message" role="alert">
+              {erro}{' '}
+              <button type="button" onClick={() => void carregarEmprestimos()}>
+                Tentar novamente
+              </button>
+            </p>
           )}
           <p className="loan-results-count" role="status">
             {emprestimosFiltrados.length}{' '}

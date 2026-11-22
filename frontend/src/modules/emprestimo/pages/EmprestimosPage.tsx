@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { getRandomQuote } from '../../../shared/utils/quotes'
+import { useAuthStore } from '../../auth/store/authStore'
 import {
   obterFimImpedimentoAtivo,
   obterImpedimentoAtivo,
@@ -39,10 +40,16 @@ function obterDataDeDevolucao(): string {
 
 export function EmprestimosPage() {
   const [, navigate] = useLocation()
+  const usuarioCodigo = useAuthStore((state) => state.usuario?.codigo)
   const livros = useLivroStore((state) => state.livros)
-  const leitores = useLeitorStore((state) => state.leitores)
-  const emprestimos = useEmprestimoStore((state) => state.emprestimos)
-  const impedimentos = useEmprestimoStore((state) => state.impedimentos)
+  const leitoresArmazenados = useLeitorStore((state) => state.leitores)
+  const emprestimosCarregadosPara = useEmprestimoStore((state) => state.carregadoPara)
+  const emprestimosArmazenados = useEmprestimoStore((state) => state.emprestimos)
+  const impedimentosArmazenados = useEmprestimoStore((state) => state.impedimentos)
+  const emprestimosErro = useEmprestimoStore((state) => state.erro)
+  const carregandoEmprestimos = useEmprestimoStore((state) => state.carregando)
+  const salvandoEmprestimo = useEmprestimoStore((state) => state.salvando)
+  const carregarEmprestimos = useEmprestimoStore((state) => state.carregarEmprestimos)
   const registrarEmprestimo = useEmprestimoStore((state) => state.registrarEmprestimo)
   const [openPicker, setOpenPicker] = useState<LoanPicker>(null)
   const [bookQuery, setBookQuery] = useState('')
@@ -52,6 +59,21 @@ export function EmprestimosPage() {
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [showPenalties, setShowPenalties] = useState(false)
   const [message, setMessage] = useState('')
+  const leitoresCarregando = useLeitorStore((state) => state.carregando)
+  const leitoresCarregados = useLeitorStore((state) => state.carregado)
+  const leitoresCarregadosPara = useLeitorStore((state) => state.carregadoPara)
+  const leitoresErro = useLeitorStore((state) => state.erro)
+  const carregarLeitores = useLeitorStore((state) => state.carregarLeitores)
+  const carregarLivros = useLivroStore((state) => state.carregarLivros)
+  const dadosEmprestimoProntos = emprestimosCarregadosPara === usuarioCodigo
+  const dadosLeitoresProntos = leitoresCarregadosPara === usuarioCodigo
+  const leitores = dadosLeitoresProntos ? leitoresArmazenados : []
+  const emprestimos = dadosEmprestimoProntos ? emprestimosArmazenados : []
+  const impedimentos = dadosEmprestimoProntos ? impedimentosArmazenados : []
+
+  useEffect(() => {
+    if (!leitoresCarregados || leitoresCarregadosPara !== usuarioCodigo) void carregarLeitores()
+  }, [carregarLeitores, leitoresCarregados, leitoresCarregadosPara, usuarioCodigo])
 
   const availableBooks = useMemo(
     () =>
@@ -88,8 +110,16 @@ export function EmprestimosPage() {
       const fimImpedimento = obterFimImpedimentoAtivo(impedimentos, leitor.codigo)
       setOpenPicker(null)
       setMessage(
-        `Este leitor está impedido de realizar empréstimos até ${fimImpedimento ? formatarDataISO(fimImpedimento) : 'o fim do período'}.`,
+        `Este leitor está impedido de realizar empréstimos até ${
+          fimImpedimento ? formatarDataISO(fimImpedimento) : 'o fim do período'
+        }.`,
       )
+      return
+    }
+
+    if (emprestimosDoLeitor(leitor.codigo).abertos > 0) {
+      setOpenPicker(null)
+      setMessage('Este leitor já possui um empréstimo em andamento.')
       return
     }
 
@@ -99,41 +129,46 @@ export function EmprestimosPage() {
     if (selectedBook) setShowConfirmation(true)
   }
 
-  function confirmarEmprestimo() {
+  async function confirmarEmprestimo() {
     if (!selectedBook || !selectedReader) return
 
     if (obterImpedimentoAtivo(impedimentos, selectedReader.codigo)) {
       const fimImpedimento = obterFimImpedimentoAtivo(impedimentos, selectedReader.codigo)
       setShowConfirmation(false)
       setMessage(
-        `Este leitor está impedido de realizar empréstimos até ${fimImpedimento ? formatarDataISO(fimImpedimento) : 'o fim do período'}.`,
+        `Este leitor está impedido de realizar empréstimos até ${
+          fimImpedimento ? formatarDataISO(fimImpedimento) : 'o fim do período'
+        }.`,
       )
       return
     }
 
-    const exemplarEmprestado = useLivroStore
+    const livroAtual = useLivroStore
       .getState()
-      .emprestarExemplar(selectedBook.codigo)
-    if (!exemplarEmprestado) {
+      .livros.find((livro) => livro.codigo === selectedBook.codigo)
+    if (!livroAtual || livroAtual.quantidade_disponivel <= 0 || livroAtual.arquivado) {
       setShowConfirmation(false)
       setSelectedBook(null)
       setMessage('Este exemplar não está mais disponível. Escolha outro livro.')
       return
     }
 
-    const registrado = registrarEmprestimo({
+    const registrado = await registrarEmprestimo({
       livroId: selectedBook.codigo,
       livroNome: selectedBook.nome,
       leitorId: selectedReader.codigo,
       leitorNome: selectedReader.nome,
     })
     if (!registrado) {
-      useLivroStore.getState().devolverExemplar(selectedBook.codigo)
       setShowConfirmation(false)
-      setMessage('Não foi possível registrar o empréstimo. Verifique se o leitor está impedido.')
+      setMessage(
+        useEmprestimoStore.getState().erro
+          || 'Não foi possível registrar o empréstimo. Verifique se o leitor está impedido.',
+      )
       return
     }
 
+    await carregarLivros()
     navigate('/emprestimos')
   }
 
@@ -143,7 +178,8 @@ export function EmprestimosPage() {
     )
     return {
       abertos: doLeitor.filter(
-        (emprestimo) => !emprestimo.status.startsWith('DEVOLVIDO'),
+        (emprestimo) =>
+          emprestimo.status === 'EM_ANDAMENTO' || emprestimo.status === 'ATRASADO',
       ).length,
       atrasados: doLeitor.filter((emprestimo) => emprestimo.status === 'ATRASADO').length,
     }
@@ -212,6 +248,24 @@ export function EmprestimosPage() {
         </div>
 
         {message && <p className="loan-selection-message" role="status">{message}</p>}
+        {(leitoresErro || emprestimosErro) && !message && (
+          <div className="loan-selection-message" role="alert">
+            <p>{leitoresErro || emprestimosErro}</p>
+            <button
+              type="button"
+              className="book-button book-button--secondary"
+              onClick={() => {
+                if (leitoresErro) void carregarLeitores()
+                if (emprestimosErro) void carregarEmprestimos()
+              }}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
+        {(leitoresCarregando || carregandoEmprestimos) && (
+          <p className="loan-selection-message" role="status">Carregando dados de empréstimos...</p>
+        )}
       </section>
 
       {openPicker && (
@@ -295,9 +349,13 @@ export function EmprestimosPage() {
                       <li key={leitor.codigo}>
                         <button
                           type="button"
-                          className={`loan-picker-option loan-reader-option${impedido ? ' loan-reader-option--blocked' : ''}`}
+                          className={
+                            `loan-picker-option loan-reader-option${impedido ? ' loan-reader-option--blocked' : ''}`
+                          }
                           aria-pressed={selectedReader?.codigo === leitor.codigo}
-                          disabled={Boolean(impedido)}
+                          disabled={
+                            Boolean(impedido) || !dadosEmprestimoProntos || !dadosLeitoresProntos
+                          }
                           onClick={() => selecionarLeitor(leitor)}
                         >
                           <span>{leitor.nome}</span>
@@ -362,8 +420,9 @@ export function EmprestimosPage() {
                 type="button"
                 className="book-button"
                 onClick={confirmarEmprestimo}
+                disabled={salvandoEmprestimo}
               >
-                Confirmar
+                {salvandoEmprestimo ? 'Registrando...' : 'Confirmar'}
               </button>
             </div>
           </section>
