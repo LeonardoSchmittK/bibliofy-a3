@@ -62,7 +62,7 @@ def _existe_duplicado(
         return False
     consulta = select(Pessoa.id).where(or_(*condicoes))
     if ignorar_id is not None:
-        consulta = consulta.where(Pessoa.id == ignorar_id)
+        consulta = consulta.where(Pessoa.id != ignorar_id)
     return db.scalars(consulta.limit(1)).first() is not None
 
 
