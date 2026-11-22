@@ -8,11 +8,13 @@ import {
 import { Link, Redirect, Route, Switch, useLocation } from 'wouter'
 import { getRandomQuote } from '../shared/utils/quotes'
 import { useAuthStore } from '../modules/auth/store/authStore'
+import type { UsuarioAutenticado } from '../modules/auth/types/auth'
 import { useLivroStore } from '../modules/livro/store/livroStore'
 import { CatalogoLivros } from '../modules/livro/pages/CatalogoLivros'
 import { EmprestimosPage } from '../modules/emprestimo/pages/EmprestimosPage'
 import { GerenciarEmprestimosPage } from '../modules/emprestimo/pages/GerenciarEmprestimosPage'
 import { useEmprestimoStore } from '../modules/emprestimo/store/emprestimoStore'
+import { apiRequest } from '../shared/api/client'
 
 const quote = getRandomQuote()
 const COUNT_UP_DURATION_MS = 650
@@ -82,7 +84,13 @@ function TypewriterTitle({ text }: { text: string }) {
   )
 }
 
-function PrivatePage({ children }: { children: ReactNode }) {
+function PrivatePage({
+  children,
+  apenasBibliotecario = false,
+}: {
+  children: ReactNode
+  apenasBibliotecario?: boolean
+}) {
   const estado = useAuthStore((state) => state.estado)
   const usuario = useAuthStore((state) => state.usuario)
   const usuarioCodigo = usuario?.codigo
@@ -125,6 +133,7 @@ function PrivatePage({ children }: { children: ReactNode }) {
     )
   }
   if (estado !== 'authenticated') return <Redirect to="/login" />
+  if (apenasBibliotecario && usuario?.papel !== 'BIBLIOTECARIO') return <Redirect to="/" />
 
   return (
     <div
@@ -168,6 +177,9 @@ function AuthPage({ mode }: { mode: 'login' | 'cadastro' }) {
   const estado = useAuthStore((state) => state.estado)
   const [, navigate] = useLocation()
   const isLogin = mode === 'login'
+  const [erroCadastro, setErroCadastro] = useState<string | null>(null)
+  const [carregandoCadastro, setCarregandoCadastro] = useState(false)
+  const [cadastroConcluido, setCadastroConcluido] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -176,6 +188,32 @@ function AuthPage({ mode }: { mode: 'login' | 'cadastro' }) {
     const password = String(values.get('senha') ?? '')
     limparErro()
     if (await entrar(email, password)) navigate('/')
+  }
+
+  async function handleCadastro(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const values = new FormData(event.currentTarget)
+    const nome = String(values.get('nome') ?? '').trim()
+    const matricula = String(values.get('matricula') ?? '').trim()
+    const email = String(values.get('email') ?? '').trim()
+    const telefone = String(values.get('telefone') ?? '').trim()
+    const senha = String(values.get('senha') ?? '')
+
+    setErroCadastro(null)
+    setCarregandoCadastro(true)
+    try {
+      await apiRequest<UsuarioAutenticado>('/auth/registro', {
+        method: 'POST',
+        body: { nome, matricula, email, telefone: telefone || null, senha },
+      })
+      setCadastroConcluido(true)
+    } catch (error) {
+      setErroCadastro(
+        error instanceof Error ? error.message : 'Não foi possível criar sua conta.',
+      )
+    } finally {
+      setCarregandoCadastro(false)
+    }
   }
 
   if (estado === 'authenticated') return <Redirect to="/" />
@@ -194,7 +232,7 @@ function AuthPage({ mode }: { mode: 'login' | 'cadastro' }) {
         <p className="auth-intro">
           {isLogin
             ? 'Acesse sua conta para continuar.'
-            : 'Para criar uma conta, solicite o cadastro a um bibliotecário.'}
+            : 'Preencha seus dados para acessar a biblioteca.'}
         </p>
         <nav className="auth-tabs" aria-label="Autenticação">
           <Link href="/login" aria-current={isLogin ? 'page' : undefined} className={isLogin ? 'active' : undefined}>Entrar</Link>
@@ -227,10 +265,56 @@ function AuthPage({ mode }: { mode: 'login' | 'cadastro' }) {
               {carregandoLogin ? 'Entrando...' : 'Entrar na biblioteca'} <span aria-hidden="true">→</span>
             </button>
           </form>
-        ) : (
-          <p className="auth-message" role="status">
-            O cadastro público ainda não está disponível. Peça ao bibliotecário para criar sua conta.
+        ) : cadastroConcluido ? (
+          <p className="auth-message auth-message--success" role="status">
+            Conta criada. <Link href="/login">Entre com seu e-mail e senha.</Link>
           </p>
+        ) : (
+          <form className="auth-form" onSubmit={handleCadastro}>
+            <label htmlFor="cadastro-nome">Nome</label>
+            <input
+              id="cadastro-nome"
+              name="nome"
+              type="text"
+              autoComplete="name"
+              required
+            />
+            <label htmlFor="cadastro-matricula">Matrícula</label>
+            <input
+              id="cadastro-matricula"
+              name="matricula"
+              type="text"
+              autoComplete="off"
+              required
+            />
+            <label htmlFor="cadastro-email">Email</label>
+            <input
+              id="cadastro-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+            />
+            <label htmlFor="cadastro-telefone">Telefone <span>(opcional)</span></label>
+            <input
+              id="cadastro-telefone"
+              name="telefone"
+              type="tel"
+              autoComplete="tel"
+            />
+            <label htmlFor="cadastro-senha">Senha</label>
+            <input
+              id="cadastro-senha"
+              name="senha"
+              type="password"
+              autoComplete="new-password"
+              required
+            />
+            {erroCadastro && <p className="auth-message" role="alert">{erroCadastro}</p>}
+            <button type="submit" disabled={carregandoCadastro}>
+              {carregandoCadastro ? 'Criando conta...' : 'Criar conta'} <span aria-hidden="true">→</span>
+            </button>
+          </form>
         )}
         {isLogin && <p className="auth-footnote">Ao continuar, você concorda com os termos de uso da Bibliofy.</p>}
       </section>
@@ -281,17 +365,21 @@ function DashboardPage() {
             <p
               className="dashboard-subtitle"
               tabIndex={0}
-              onMouseEnter={() => setShowLoanSummary(true)}
+              onMouseEnter={() => isBibliotecario && setShowLoanSummary(true)}
               onMouseLeave={() => setShowLoanSummary(false)}
-              onFocus={() => setShowLoanSummary(true)}
+              onFocus={() => isBibliotecario && setShowLoanSummary(true)}
               onBlur={() => setShowLoanSummary(false)}
             >
               <span>
-                {showLoanSummary
+                {isBibliotecario && showLoanSummary
                   ? `Você tem ${emprestimosAbertos} empréstimos abertos e ${emprestimosAtrasados} atrasados.`
                   : showBookSummary
-                    ? `${exemplaresDisponiveis} exemplares disponíveis e ${exemplaresEmprestados} emprestados.`
-                    : 'Gerencie aqui seus empréstimos e livros.'}
+                    ? isBibliotecario
+                      ? `${exemplaresDisponiveis} exemplares disponíveis e ${exemplaresEmprestados} emprestados.`
+                      : `${exemplaresDisponiveis} exemplares disponíveis no acervo.`
+                    : isBibliotecario
+                      ? 'Gerencie aqui seus empréstimos e livros.'
+                      : 'Consulte o estoque da biblioteca.'}
               </span>
             </p>
           </div>
@@ -309,19 +397,21 @@ function DashboardPage() {
               <span className="stat-number stat-number--green">{exemplaresDisponiveisAnimados}</span>
               <span className="stat-number stat-number--red">{exemplaresEmprestadosAnimados}</span>
             </div>
-            <div
-              className="stat-pair stat-pair--loans"
-              role="group"
-              aria-label={`${emprestimosAbertos} empréstimos abertos e ${emprestimosAtrasados} em atraso`}
-              tabIndex={0}
-              onMouseEnter={() => setShowLoanSummary(true)}
-              onMouseLeave={() => setShowLoanSummary(false)}
-              onFocus={() => setShowLoanSummary(true)}
-              onBlur={() => setShowLoanSummary(false)}
-            >
-              <span className="stat-number stat-number--green">{emprestimosAbertosAnimados}</span>
-              <span className="stat-number stat-number--red">{emprestimosAtrasadosAnimados}</span>
-            </div>
+            {isBibliotecario && (
+              <div
+                className="stat-pair stat-pair--loans"
+                role="group"
+                aria-label={`${emprestimosAbertos} empréstimos abertos e ${emprestimosAtrasados} atrasados`}
+                tabIndex={0}
+                onMouseEnter={() => setShowLoanSummary(true)}
+                onMouseLeave={() => setShowLoanSummary(false)}
+                onFocus={() => setShowLoanSummary(true)}
+                onBlur={() => setShowLoanSummary(false)}
+              >
+                <span className="stat-number stat-number--green">{emprestimosAbertosAnimados}</span>
+                <span className="stat-number stat-number--red">{emprestimosAtrasadosAnimados}</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="management-row">
@@ -329,7 +419,7 @@ function DashboardPage() {
             <Link href="/emprestimos">
               {isBibliotecario ? 'Gerenciar empréstimos' : 'Meus empréstimos'} <span>↗</span>
             </Link>
-            <Link href="/livros">Gerenciar estoque <span>↗</span></Link>
+            <Link href="/livros">{isBibliotecario ? 'Gerenciar estoque' : 'Ver estoque'} <span>↗</span></Link>
           </div>
         </div>
         {livrosErro && (
@@ -361,7 +451,7 @@ export function AppRoutes() {
       <Route path="/cadastro"><AuthPage mode="cadastro" /></Route>
       <Route path="/bibliotecario"><PrivatePage><SimplePage title="Área do bibliotecário" href="/" link="Voltar ao painel" /></PrivatePage></Route>
       <Route path="/leitor"><PrivatePage><SimplePage title="Área do leitor" href="/" link="Voltar ao painel" /></PrivatePage></Route>
-      <Route path="/livros/cadastrar"><PrivatePage><Redirect to="/livros?modal=cadastro" /></PrivatePage></Route>
+      <Route path="/livros/cadastrar"><PrivatePage apenasBibliotecario><Redirect to="/livros?modal=cadastro" /></PrivatePage></Route>
       <Route path="/livros"><PrivatePage><CatalogoLivros /></PrivatePage></Route>
       <Route path="/emprestimos/novo">
         <PrivatePage>

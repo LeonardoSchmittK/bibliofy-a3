@@ -65,6 +65,8 @@
 .auth-form button span { font-size: 19px; }
 .auth-footnote { margin-top: 12px; color: #a09079; text-align: center; font-size: 9px; }
 .auth-message { color: #963c2f; font-size: 12px; }
+.auth-message--success { color: #426b38; }
+.auth-message--success a { color: #503b25; font-weight: 600; }
 
 .dashboard-page { min-height: 100vh; position: relative; isolation: isolate; display: flex; flex-direction: column; }
 .dashboard-page::before { content: ''; position: absolute; inset: 0; z-index: -1; background: rgba(252,244,226,.06); }
