@@ -10,13 +10,23 @@ front:
 	cd frontend && npm run dev
 
 back:
-	cd backend && docker compose up -d && uv run uvicorn app.main:app --reload
+	cd backend && docker compose stop api && docker compose up -d db && uv run uvicorn app.main:app --reload
 
-app:
+# Git Bash also sets OS=Windows_NT; use cmd only for a native Windows shell.
 ifeq ($(OS),Windows_NT)
-	start "Frontend" cmd /k "cd frontend && npm run dev" && start "Backend" cmd /k "cd backend && docker compose up -d && uv run uvicorn app.main:app --reload"
+ifeq ($(strip $(MSYSTEM)),)
+ifeq ($(findstring sh,$(SHELL)),)
+APP_ON_WINDOWS_CMD := 1
+endif
+endif
+endif
+
+ifeq ($(APP_ON_WINDOWS_CMD),1)
+app:
+	start "Frontend" cmd /k "cd frontend && npm run dev" && start "Backend" cmd /k "cd backend && docker compose stop api && docker compose up -d db && uv run uvicorn app.main:app --reload"
 else
-	$(MAKE) front & $(MAKE) back; wait
+app:
+	$(MAKE) -j2 front back
 endif
 
 run:
