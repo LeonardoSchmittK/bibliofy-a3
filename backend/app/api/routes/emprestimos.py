@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import Bibliotecario, UsuarioAtual
 from app.db.session import get_db
-from app.models import Pessoa
 from app.schemas.emprestimo import EmprestimoCriar, EmprestimoSaida, StatusEmprestimo
 from app.services import emprestimo_service
 
@@ -40,7 +39,7 @@ def criar(dados: EmprestimoCriar, operador: Bibliotecario, db: DB):
 def listar(
     solicitante: UsuarioAtual,
     db: DB,
-    status_atual: StatusEmprestimo | None = Query(default=None, alias="status"),
+    status_atual: Annotated[StatusEmprestimo | None, Query(alias="status")] = None,
     busca: str | None = None,
     data_inicio: date | None = None,
     data_fim: date | None = None,
