@@ -63,12 +63,15 @@ def _buscar_emprestimo(db: Session, codigo: str, *, bloquear: bool = False) -> E
 
 
 def _quantidade_fora_da_estante(db: Session, livro_id: int) -> int:
-    return db.scalar(
-        select(func.count(Emprestimo.id)).where(
-            Emprestimo.livro_id == livro_id,
-            Emprestimo.status_atual.in_(STATUS_FORA_DA_ESTANTE),
+    return (
+        db.scalar(
+            select(func.count(Emprestimo.id)).where(
+                Emprestimo.livro_id == livro_id,
+                Emprestimo.status_atual.in_(STATUS_FORA_DA_ESTANTE),
+            )
         )
-    ) or 0
+        or 0
+    )
 
 
 def _bloqueio_ativo(db: Session, pessoa_id: int, hoje: date) -> Bloqueio | None:
