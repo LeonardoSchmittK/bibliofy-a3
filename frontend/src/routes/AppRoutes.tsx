@@ -84,12 +84,16 @@ function TypewriterTitle({ text }: { text: string }) {
 
 function PrivatePage({ children }: { children: ReactNode }) {
   const estado = useAuthStore((state) => state.estado)
+  const usuario = useAuthStore((state) => state.usuario)
+  const usuarioCodigo = usuario?.codigo
   const erro = useAuthStore((state) => state.erro)
   const inicializarSessao = useAuthStore((state) => state.inicializarSessao)
   const [exitDrawerOpen, setExitDrawerOpen] = useState(false)
   const sair = useAuthStore((state) => state.sair)
   const carregarLivros = useLivroStore((state) => state.carregarLivros)
   const livrosCarregados = useLivroStore((state) => state.carregado)
+  const carregarEmprestimos = useEmprestimoStore((state) => state.carregarEmprestimos)
+  const emprestimosCarregadosPara = useEmprestimoStore((state) => state.carregadoPara)
 
   useEffect(() => {
     void inicializarSessao()
@@ -98,6 +102,16 @@ function PrivatePage({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (estado === 'authenticated' && !livrosCarregados) void carregarLivros()
   }, [carregarLivros, estado, livrosCarregados])
+
+  useEffect(() => {
+    if (
+      estado === 'authenticated' &&
+      usuarioCodigo &&
+      emprestimosCarregadosPara !== usuarioCodigo
+    ) {
+      void carregarEmprestimos()
+    }
+  }, [carregarEmprestimos, emprestimosCarregadosPara, estado, usuarioCodigo])
 
   if (estado === 'checking') {
     return <main className="simple-page" role="status">Verificando sessão...</main>
@@ -131,6 +145,19 @@ function PrivatePage({ children }: { children: ReactNode }) {
       {children}
     </div>
   )
+}
+
+function BibliotecarioOnly({ children }: { children: ReactNode }) {
+  const usuario = useAuthStore((state) => state.usuario)
+  if (usuario?.papel !== 'BIBLIOTECARIO') {
+    return (
+      <main className="simple-page">
+        <p role="alert">Apenas bibliotecários podem registrar empréstimos.</p>
+        <Link href="/emprestimos">Ver meus empréstimos →</Link>
+      </main>
+    )
+  }
+  return <>{children}</>
 }
 
 function AuthPage({ mode }: { mode: 'login' | 'cadastro' }) {
@@ -213,14 +240,17 @@ function AuthPage({ mode }: { mode: 'login' | 'cadastro' }) {
 
 function DashboardPage() {
   const usuario = useAuthStore((state) => state.usuario)
+  const isBibliotecario = usuario?.papel === 'BIBLIOTECARIO'
   const name = usuario?.nome || 'Bibliotecário'
   const firstName = name.trim().split(/\s+/)[0]
   const [showLoanSummary, setShowLoanSummary] = useState(false)
   const [showBookSummary, setShowBookSummary] = useState(false)
-  const emprestimos = useEmprestimoStore((state) => state.emprestimos)
+  const emprestimosArmazenados = useEmprestimoStore((state) => state.emprestimos)
+  const emprestimosCarregadosPara = useEmprestimoStore((state) => state.carregadoPara)
   const livros = useLivroStore((state) => state.livros)
   const carregarLivros = useLivroStore((state) => state.carregarLivros)
   const livrosErro = useLivroStore((state) => state.erro)
+  const emprestimos = emprestimosCarregadosPara === usuario?.codigo ? emprestimosArmazenados : []
   const livrosAtivos = livros.filter((livro) => !livro.arquivado)
   const exemplaresDisponiveis = livrosAtivos.reduce(
     (total, livro) => total + livro.quantidade_disponivel,
@@ -295,7 +325,12 @@ function DashboardPage() {
           </div>
         </div>
         <div className="management-row">
-          <div className="management-links"><Link href="/emprestimos">Gerenciar empréstimos <span>↗</span></Link><Link href="/livros">Gerenciar estoque <span>↗</span></Link></div>
+          <div className="management-links">
+            <Link href="/emprestimos">
+              {isBibliotecario ? 'Gerenciar empréstimos' : 'Meus empréstimos'} <span>↗</span>
+            </Link>
+            <Link href="/livros">Gerenciar estoque <span>↗</span></Link>
+          </div>
         </div>
         {livrosErro && (
           <div className="dashboard-load-error" role="alert">
@@ -303,10 +338,12 @@ function DashboardPage() {
             <button type="button" onClick={() => void carregarLivros()}>Tentar novamente</button>
           </div>
         )}
-        <div className="quick-actions">
-          <Link href="/emprestimos/novo" className="action-card"><span className="action-plus">+</span><span>Registrar empréstimo</span></Link>
-          <Link href="/livros?modal=cadastro" className="action-card"><span className="action-plus">+</span><span>Adicionar livro no<br /> catálogo</span></Link>
-        </div>
+        {isBibliotecario && (
+          <div className="quick-actions">
+            <Link href="/emprestimos/novo" className="action-card"><span className="action-plus">+</span><span>Registrar empréstimo</span></Link>
+            <Link href="/livros?modal=cadastro" className="action-card"><span className="action-plus">+</span><span>Adicionar livro no<br /> catálogo</span></Link>
+          </div>
+        )}
       </section>
     </main>
   )
@@ -326,7 +363,11 @@ export function AppRoutes() {
       <Route path="/leitor"><PrivatePage><SimplePage title="Área do leitor" href="/" link="Voltar ao painel" /></PrivatePage></Route>
       <Route path="/livros/cadastrar"><PrivatePage><Redirect to="/livros?modal=cadastro" /></PrivatePage></Route>
       <Route path="/livros"><PrivatePage><CatalogoLivros /></PrivatePage></Route>
-      <Route path="/emprestimos/novo"><PrivatePage><EmprestimosPage /></PrivatePage></Route>
+      <Route path="/emprestimos/novo">
+        <PrivatePage>
+          <BibliotecarioOnly><EmprestimosPage /></BibliotecarioOnly>
+        </PrivatePage>
+      </Route>
       <Route path="/emprestimos"><PrivatePage><GerenciarEmprestimosPage /></PrivatePage></Route>
       <Route><SimplePage title="Página não encontrada" href="/" link="Voltar ao painel" /></Route>
     </Switch>
