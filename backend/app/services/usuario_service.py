@@ -3,9 +3,7 @@
 Testes que devem passar: tests/auth/test_rotas_usuarios.py.
 """
 
-from operator import or_
-
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
