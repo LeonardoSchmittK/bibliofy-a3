@@ -1009,6 +1009,11 @@
   font-size: 9px;
   white-space: nowrap;
 }
+.loan-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .loan-status {
   display: inline-flex;
   align-items: center;

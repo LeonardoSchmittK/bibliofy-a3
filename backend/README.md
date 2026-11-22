@@ -30,6 +30,25 @@ uvicorn app.main:app --reload
 - `GET /health` → `{"status": "ok"}`
 - Swagger em `http://localhost:8000/docs`
 
+## Empréstimos
+
+As rotas usam o token de acesso. Bibliotecários podem criar empréstimos, consultar o acervo
+completo e registrar devoluções; leitores consultam apenas os próprios empréstimos e podem
+solicitar uma renovação.
+
+| Método e rota | Acesso | Uso |
+| --- | --- | --- |
+| `POST /emprestimos` | Bibliotecário | Cria empréstimo com `pessoa_codigo` e `livro_codigo` |
+| `GET /emprestimos` | Usuário autenticado | Lista empréstimos, com filtros opcionais `status`, `busca`, `data_inicio` e `data_fim` |
+| `GET /emprestimos/{codigo}` | Usuário autenticado | Consulta empréstimo próprio ou qualquer empréstimo, como bibliotecário |
+| `POST /emprestimos/{codigo}/renovacao` | Titular ou bibliotecário | Renova uma vez, se ainda estiver no prazo |
+| `POST /emprestimos/{codigo}/devolucao` | Bibliotecário | Registra devolução e eventual bloqueio |
+
+O prazo inicial e o acréscimo da renovação são de 25 dias, contados a partir do vencimento
+anterior. O leitor pode manter apenas um empréstimo ativo. Devoluções feitas após o vencimento
+geram um bloqueio de 10 dias a partir da devolução; a disponibilidade dos livros é calculada
+pelos empréstimos ativos e perdidos.
+
 ## Execução com Docker (banco + API) e dados de demonstração
 
 ```bash

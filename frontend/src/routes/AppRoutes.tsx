@@ -92,13 +92,16 @@ function PrivatePage({
   apenasBibliotecario?: boolean
 }) {
   const estado = useAuthStore((state) => state.estado)
-  const erro = useAuthStore((state) => state.erro)
   const usuario = useAuthStore((state) => state.usuario)
+  const usuarioCodigo = usuario?.codigo
+  const erro = useAuthStore((state) => state.erro)
   const inicializarSessao = useAuthStore((state) => state.inicializarSessao)
   const [exitDrawerOpen, setExitDrawerOpen] = useState(false)
   const sair = useAuthStore((state) => state.sair)
   const carregarLivros = useLivroStore((state) => state.carregarLivros)
   const livrosCarregados = useLivroStore((state) => state.carregado)
+  const carregarEmprestimos = useEmprestimoStore((state) => state.carregarEmprestimos)
+  const emprestimosCarregadosPara = useEmprestimoStore((state) => state.carregadoPara)
 
   useEffect(() => {
     void inicializarSessao()
@@ -107,6 +110,16 @@ function PrivatePage({
   useEffect(() => {
     if (estado === 'authenticated' && !livrosCarregados) void carregarLivros()
   }, [carregarLivros, estado, livrosCarregados])
+
+  useEffect(() => {
+    if (
+      estado === 'authenticated' &&
+      usuarioCodigo &&
+      emprestimosCarregadosPara !== usuarioCodigo
+    ) {
+      void carregarEmprestimos()
+    }
+  }, [carregarEmprestimos, emprestimosCarregadosPara, estado, usuarioCodigo])
 
   if (estado === 'checking') {
     return <main className="simple-page" role="status">Verificando sessão...</main>
@@ -141,6 +154,19 @@ function PrivatePage({
       {children}
     </div>
   )
+}
+
+function BibliotecarioOnly({ children }: { children: ReactNode }) {
+  const usuario = useAuthStore((state) => state.usuario)
+  if (usuario?.papel !== 'BIBLIOTECARIO') {
+    return (
+      <main className="simple-page">
+        <p role="alert">Apenas bibliotecários podem registrar empréstimos.</p>
+        <Link href="/emprestimos">Ver meus empréstimos →</Link>
+      </main>
+    )
+  }
+  return <>{children}</>
 }
 
 function AuthPage({ mode }: { mode: 'login' | 'cadastro' }) {
@@ -303,10 +329,12 @@ function DashboardPage() {
   const firstName = name.trim().split(/\s+/)[0]
   const [showLoanSummary, setShowLoanSummary] = useState(false)
   const [showBookSummary, setShowBookSummary] = useState(false)
-  const emprestimos = useEmprestimoStore((state) => state.emprestimos)
+  const emprestimosArmazenados = useEmprestimoStore((state) => state.emprestimos)
+  const emprestimosCarregadosPara = useEmprestimoStore((state) => state.carregadoPara)
   const livros = useLivroStore((state) => state.livros)
   const carregarLivros = useLivroStore((state) => state.carregarLivros)
   const livrosErro = useLivroStore((state) => state.erro)
+  const emprestimos = emprestimosCarregadosPara === usuario?.codigo ? emprestimosArmazenados : []
   const livrosAtivos = livros.filter((livro) => !livro.arquivado)
   const exemplaresDisponiveis = livrosAtivos.reduce(
     (total, livro) => total + livro.quantidade_disponivel,
@@ -388,7 +416,9 @@ function DashboardPage() {
         </div>
         <div className="management-row">
           <div className="management-links">
-            {isBibliotecario && <Link href="/emprestimos">Gerenciar empréstimos <span>↗</span></Link>}
+            <Link href="/emprestimos">
+              {isBibliotecario ? 'Gerenciar empréstimos' : 'Meus empréstimos'} <span>↗</span>
+            </Link>
             <Link href="/livros">{isBibliotecario ? 'Gerenciar estoque' : 'Ver estoque'} <span>↗</span></Link>
           </div>
         </div>
@@ -423,8 +453,12 @@ export function AppRoutes() {
       <Route path="/leitor"><PrivatePage><SimplePage title="Área do leitor" href="/" link="Voltar ao painel" /></PrivatePage></Route>
       <Route path="/livros/cadastrar"><PrivatePage apenasBibliotecario><Redirect to="/livros?modal=cadastro" /></PrivatePage></Route>
       <Route path="/livros"><PrivatePage><CatalogoLivros /></PrivatePage></Route>
-      <Route path="/emprestimos/novo"><PrivatePage apenasBibliotecario><EmprestimosPage /></PrivatePage></Route>
-      <Route path="/emprestimos"><PrivatePage apenasBibliotecario><GerenciarEmprestimosPage /></PrivatePage></Route>
+      <Route path="/emprestimos/novo">
+        <PrivatePage>
+          <BibliotecarioOnly><EmprestimosPage /></BibliotecarioOnly>
+        </PrivatePage>
+      </Route>
+      <Route path="/emprestimos"><PrivatePage><GerenciarEmprestimosPage /></PrivatePage></Route>
       <Route><SimplePage title="Página não encontrada" href="/" link="Voltar ao painel" /></Route>
     </Switch>
   )
