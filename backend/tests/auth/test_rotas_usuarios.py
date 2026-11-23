@@ -287,6 +287,7 @@ def test_bibliotecario_edita_dados_cadastrais(db_client, leitor, bibliotecario, 
     assert resp.status_code == 200
     assert resp.json()["nome"] == "Lia Nova"
 
+
 def test_edicao_do_proprio_email_com_outra_capitalizacao_nao_retorna_conflito(
     db_client, db_session, leitor, bibliotecario, cabecalho
 ):
@@ -299,6 +300,7 @@ def test_edicao_do_proprio_email_com_outra_capitalizacao_nao_retorna_conflito(
     )
 
     assert resp.status_code == 200
+
 
 def test_edicao_com_email_de_outro_usuario_retorna_409(
     db_client, leitor, outro_leitor, bibliotecario, cabecalho
