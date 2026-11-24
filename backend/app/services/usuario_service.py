@@ -3,9 +3,7 @@
 Testes que devem passar: tests/auth/test_rotas_usuarios.py.
 """
 
-from operator import or_
-
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -64,7 +62,7 @@ def _existe_duplicado(
         return False
     consulta = select(Pessoa.id).where(or_(*condicoes))
     if ignorar_id is not None:
-        consulta = consulta.where(Pessoa.id == ignorar_id)
+        consulta = consulta.where(Pessoa.id != ignorar_id)
     return db.scalars(consulta.limit(1)).first() is not None
 
 

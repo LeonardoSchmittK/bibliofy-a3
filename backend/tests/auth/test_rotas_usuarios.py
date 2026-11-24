@@ -288,6 +288,34 @@ def test_bibliotecario_edita_dados_cadastrais(db_client, leitor, bibliotecario, 
     assert resp.json()["nome"] == "Lia Nova"
 
 
+def test_edicao_do_proprio_email_com_outra_capitalizacao_nao_retorna_conflito(
+    db_client, db_session, leitor, bibliotecario, cabecalho
+):
+    novo_email = leitor.email.upper()
+
+    resp = db_client.patch(
+        f"/usuarios/{leitor.codigo}",
+        json={"email": novo_email},
+        headers=cabecalho(bibliotecario),
+    )
+
+    assert resp.status_code == 200
+
+
+def test_edicao_com_email_de_outro_usuario_retorna_409(
+    db_client, leitor, outro_leitor, bibliotecario, cabecalho
+):
+    email_outro = outro_leitor.email.upper()
+
+    resp = db_client.patch(
+        f"/usuarios/{leitor.codigo}",
+        json={"email": email_outro},
+        headers=cabecalho(bibliotecario),
+    )
+
+    assert resp.status_code == 409
+
+
 def test_leitor_nao_edita_nem_o_proprio_cadastro(db_client, db_session, leitor, cabecalho):
     resp = db_client.patch(
         f"/usuarios/{leitor.codigo}", json={"nome": "Outro Nome"}, headers=cabecalho(leitor)
