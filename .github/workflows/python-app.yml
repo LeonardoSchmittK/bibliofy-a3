@@ -106,7 +106,7 @@ jobs:
       - name: Testes unitarios e integracao
         run: npm test
 
-      - name: Cobertura do frontend (minimo 80%)
+      - name: Cobertura do frontend (minimo 59%)
         run: npm run test:coverage
 
       - name: Publicar relatório de cobertura do frontend
