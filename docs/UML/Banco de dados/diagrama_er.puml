@@ -24,6 +24,7 @@ entity "livro" as livro {
   * autor : varchar(150)
   * editora : varchar(150)
   * genero : varchar(80)
+  descricao : text
   * data_lancamento : date
   * quantidade_total : int
   * arquivado : boolean
