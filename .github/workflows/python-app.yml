@@ -103,6 +103,21 @@ jobs:
       - name: Build (tsc -b + vite build)
         run: npm run build
 
+      - name: Testes unitarios e integracao
+        run: npm test
+
+      - name: Cobertura do frontend (minimo 80%)
+        run: npm run test:coverage
+
+      - name: Publicar relatório de cobertura do frontend
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Job único para marcar como "required" na proteção de branch (main e dev).
   ci-ok:
     name: CI OK

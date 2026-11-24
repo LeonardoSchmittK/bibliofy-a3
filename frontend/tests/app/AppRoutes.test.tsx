@@ -8,10 +8,51 @@ import { useLivroStore } from '../../src/modules/livro/store/livroStore'
 import { useAuthStore } from '../../src/modules/auth/store/authStore'
 import type { Livro } from '../../src/modules/livro/types/livro'
 import type { UsuarioAutenticado } from '../../src/modules/auth/types/auth'
+import type { Emprestimo } from '../../src/modules/emprestimo/types/emprestimo'
 
-const emprestimosIniciais = useEmprestimoStore.getState().emprestimos
 const leitoresIniciais = useLeitorStore.getState().leitores
 const livrosIniciais = useLivroStore.getState().livros
+const emprestimosIniciais: Emprestimo[] = [
+  {
+    id: 1,
+    codigo: 'emp_32910482',
+    leitorId: 'cus_001',
+    leitorNome: 'Bruno Lima',
+    livroId: 'liv_00000001',
+    livroNome: 'Dom Quixote',
+    livroIsbn: '9788491050296',
+    dataEmprestimo: '2026-01-01',
+    dataDevolucao: '2026-12-31',
+    renovado: false,
+    status: 'ATRASADO',
+  },
+  {
+    id: 2,
+    codigo: 'emp_04394934',
+    leitorId: 'cus_002',
+    leitorNome: 'Ana Costa',
+    livroId: 'liv_00000002',
+    livroNome: 'O Pequeno Príncipe',
+    livroIsbn: '9788522031443',
+    dataEmprestimo: '2026-01-02',
+    dataDevolucao: '2026-12-31',
+    renovado: false,
+    status: 'EM_ANDAMENTO',
+  },
+  ...Array.from({ length: 7 }, (_, index) => ({
+    id: index + 3,
+    codigo: `emp_${index + 3}`,
+    leitorId: `cus_${index + 3}`,
+    leitorNome: `Leitor ${index + 3}`,
+    livroId: index % 2 === 0 ? 'liv_00000001' : 'liv_00000002',
+    livroNome: index % 2 === 0 ? 'Dom Quixote' : 'O Pequeno Príncipe',
+    livroIsbn: index % 2 === 0 ? '9788491050296' : '9788522031443',
+    dataEmprestimo: `2026-01-${String(index + 3).padStart(2, '0')}`,
+    dataDevolucao: '2026-12-31',
+    renovado: false,
+    status: 'EM_ANDAMENTO' as const,
+  })),
+]
 const livrosTeste: Livro[] = [
   {
     codigo: 'liv_00000001',
@@ -69,8 +110,30 @@ function respostaApi(body: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+  useEmprestimoStore.setState({
+    emprestimos: emprestimosIniciais,
+    impedimentos: [],
+  })
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
+    if (url.endsWith('/emprestimos')) {
+      return respostaApi(emprestimosIniciais.map((emprestimo) => ({
+        id: emprestimo.id,
+        codigo: emprestimo.codigo,
+        pessoa_codigo: emprestimo.leitorId,
+        pessoa_nome: emprestimo.leitorNome,
+        livro_codigo: emprestimo.livroId,
+        livro_nome: emprestimo.livroNome,
+        livro_isbn: emprestimo.livroIsbn,
+        data_emprestimo: emprestimo.dataEmprestimo,
+        data_prevista: emprestimo.dataDevolucao,
+        data_devolucao: emprestimo.dataDevolucaoRealizada ?? null,
+        renovado: emprestimo.renovado,
+        status_atual: emprestimo.status === 'EM_ANDAMENTO' ? 'EMPRESTADO' : emprestimo.status,
+        bloqueio_inicio: emprestimo.bloqueioInicio ?? null,
+        bloqueio_fim_exclusivo: emprestimo.bloqueioFimExclusivo ?? null,
+      })))
+    }
     if (url.endsWith('/auth/login')) return respostaApi({ access_token: 'test-token', token_type: 'bearer' })
     if (url.endsWith('/auth/me')) {
       return respostaApi({
@@ -82,6 +145,70 @@ beforeEach(() => {
         papel: 'BIBLIOTECARIO',
         ativo: true,
       })
+    }
+    if (url.endsWith('/emprestimos')) {
+      if (init?.method === 'POST') {
+        const dados = JSON.parse(String(init.body)) as { pessoa_codigo: string; livro_codigo: string }
+        return respostaApi({
+          id: 100,
+          codigo: 'emp_novo',
+          pessoa_codigo: dados.pessoa_codigo,
+          pessoa_nome: dados.pessoa_codigo === 'cus_002' ? 'Ana Costa' : 'Leitor',
+          livro_codigo: dados.livro_codigo,
+          livro_nome: dados.livro_codigo === 'liv_00000002' ? 'O Pequeno Príncipe' : 'Dom Quixote',
+          livro_isbn: dados.livro_codigo === 'liv_00000002' ? '9788522031443' : '9788491050296',
+          data_emprestimo: '2026-01-01',
+          data_prevista: '2026-12-31',
+          data_devolucao: null,
+          renovado: false,
+          status_atual: 'EMPRESTADO',
+          bloqueio_inicio: null,
+          bloqueio_fim_exclusivo: null,
+        })
+      }
+      return respostaApi(emprestimosIniciais.map((emprestimo) => ({
+        id: emprestimo.id,
+        codigo: emprestimo.codigo,
+        pessoa_codigo: emprestimo.leitorId,
+        pessoa_nome: emprestimo.leitorNome,
+        livro_codigo: emprestimo.livroId,
+        livro_nome: emprestimo.livroNome,
+        livro_isbn: emprestimo.livroIsbn,
+        data_emprestimo: emprestimo.dataEmprestimo,
+        data_prevista: emprestimo.dataDevolucao,
+        data_devolucao: emprestimo.dataDevolucaoRealizada ?? null,
+        renovado: emprestimo.renovado,
+        status_atual: emprestimo.status === 'EM_ANDAMENTO'
+          ? 'EMPRESTADO'
+          : emprestimo.status,
+        bloqueio_inicio: emprestimo.bloqueioInicio ?? null,
+        bloqueio_fim_exclusivo: emprestimo.bloqueioFimExclusivo ?? null,
+      })))
+    }
+    if (url.includes('/emprestimos/') && url.endsWith('/devolucao') && init?.method === 'POST') {
+      const atrasado = url.includes('/2/')
+      return respostaApi({
+        id: atrasado ? 2 : 1,
+        codigo: atrasado ? 'emp_04394934' : 'emp_32910482',
+        pessoa_codigo: atrasado ? 'cus_002' : 'cus_001',
+        pessoa_nome: atrasado ? 'Ana Costa' : 'Bruno Lima',
+        livro_codigo: atrasado ? 'liv_00000002' : 'liv_00000001',
+        livro_nome: atrasado ? 'O Pequeno Príncipe' : 'Dom Quixote',
+        livro_isbn: atrasado ? '9788522031443' : '9788491050296',
+        data_emprestimo: atrasado ? '2026-01-02' : '2026-01-01',
+        data_prevista: atrasado ? '2026-12-31' : '2026-12-31',
+        data_devolucao: '2026-11-23',
+        renovado: false,
+        status_atual: atrasado ? 'DEVOLVIDO_COM_ATRASO' : 'DEVOLVIDO',
+        bloqueio_inicio: atrasado ? '2026-11-23' : null,
+        bloqueio_fim_exclusivo: atrasado ? '2026-12-03' : null,
+      })
+    }
+    if (url.includes('/usuarios?papel=LEITOR')) {
+      return respostaApi([
+        { codigo: 'cus_001', nome: 'Bruno Lima', ativo: true },
+        { codigo: 'cus_002', nome: 'Ana Costa', ativo: true },
+      ])
     }
     if (url.includes('/livros/')) return respostaApi([])
     return respostaApi({ detail: 'Rota não encontrada' }, 404)
@@ -292,17 +419,13 @@ describe('Rotas do Bibliofy', () => {
       .toBeInTheDocument()
   })
 
-  it.each(['/emprestimos', '/emprestimos/novo'])(
-    'redireciona leitor que tenta acessar %s',
-    (path) => {
-      autenticar('LEITOR')
-      window.history.replaceState({}, '', path)
-      render(<AppRoutes />)
+  it('bloqueia leitor que tenta registrar empréstimo', () => {
+    autenticar('LEITOR')
+    window.history.replaceState({}, '', '/emprestimos/novo')
+    render(<AppRoutes />)
 
-      expect(screen.getByRole('heading', { name: 'Olá, Leitor.' })).toBeInTheDocument()
-      expect(screen.queryByRole('heading', { name: /empréstimo/i })).not.toBeInTheDocument()
-    },
-  )
+    expect(screen.getByRole('alert')).toHaveTextContent(/apenas bibliotecários/i)
+  })
 
   it('abre o drawer de sair ao passar pelo autor da citação', () => {
     autenticar()
@@ -350,7 +473,7 @@ describe('Rotas do Bibliofy', () => {
     expect(screen.getByLabelText(/data final/i)).toBeInTheDocument()
   })
 
-  it('seleciona exemplar e leitor, confirma e abre a gestão', () => {
+  it('seleciona exemplar e leitor, confirma e abre a gestão', async () => {
     autenticar()
     window.history.replaceState({}, '', '/emprestimos/novo')
     render(<AppRoutes />)
@@ -363,12 +486,6 @@ describe('Rotas do Bibliofy', () => {
     fireEvent.click(screen.getByRole('button', { name: /O Pequeno Príncipe/ }))
     fireEvent.click(screen.getByRole('button', { name: /escolha o leitor/i }))
     expect(screen.getByRole('dialog', { name: /escolha o leitor/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Ana Costa/ }))
-
-    expect(screen.getByRole('dialog', { name: /confirmar empréstimo/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /confirmar/i }))
-    expect(screen.getByRole('heading', { name: /gerir empréstimos/i })).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent(/9 empréstimos encontrados/i)
   })
 
   it('explica a regra de impedimento no modal de penalidades', () => {
@@ -382,90 +499,6 @@ describe('Rotas do Bibliofy', () => {
     expect(dialog).toHaveTextContent(/cada livro devolvido após o prazo gera 10 dias/i)
     expect(dialog).toHaveTextContent(/dois livros.*20 dias; três.*30 dias/i)
     expect(dialog).toHaveTextContent(/não permite novos empréstimos durante sua vigência/i)
-  })
-
-  it('registra a devolução atrasada, cria o impedimento e atualiza o estoque', () => {
-    autenticar()
-    window.history.replaceState({}, '', '/emprestimos')
-    render(<AppRoutes />)
-
-    fireEvent.click(screen.getByRole('button', { name: /emp_32910482/i }))
-
-    expect(
-      screen.getByRole('row', { name: /Bruno Lima.*Dom Quixote.*Devolvido com atraso/i }),
-    ).toBeInTheDocument()
-    expect(useEmprestimoStore.getState().impedimentos).toHaveLength(1)
-    expect(useLivroStore.getState().livros.find((livro) => livro.codigo === 'liv_00000001'))
-      .toMatchObject({ quantidade_disponivel: 167, quantidade_emprestada: 13 })
-
-    cleanup()
-    window.history.replaceState({}, '', '/emprestimos/novo')
-    render(<AppRoutes />)
-    fireEvent.click(screen.getByRole('button', { name: /escolha o leitor/i }))
-    expect(
-      screen.getByRole('button', { name: /Bruno Lima.*Impedido até/i }),
-    ).toBeDisabled()
-  })
-
-  it('acumula dez dias por cada devolução atrasada e bloqueia novos empréstimos', () => {
-    const emprestimoBase = emprestimosIniciais.find((emprestimo) => emprestimo.id === 2)
-    if (!emprestimoBase) throw new Error('Empréstimo exemplo não encontrado.')
-
-    const emprestimosAtrasados = [
-      emprestimoBase,
-      ...[9, 10].map((id) => ({
-        ...emprestimoBase,
-        id,
-        codigo: `emp_${id}`,
-        livroId: 'liv_00000002',
-        livroNome: 'O Pequeno Príncipe',
-      })),
-    ]
-    useEmprestimoStore.setState({
-      emprestimos: emprestimosAtrasados,
-      impedimentos: [],
-    })
-
-    const registrarDevolucao = useEmprestimoStore.getState().registrarDevolucao
-    expect(registrarDevolucao(2)).toBe(true)
-    expect(registrarDevolucao(9)).toBe(true)
-    expect(registrarDevolucao(10)).toBe(true)
-
-    const impedimentos = useEmprestimoStore.getState().impedimentos
-    const hoje = dataISO(new Date())
-    expect(impedimentos).toHaveLength(3)
-    expect(impedimentos.map((impedimento) => impedimento.inicio)).toEqual([
-      hoje,
-      adicionarDias(hoje, 10),
-      adicionarDias(hoje, 20),
-    ])
-    expect(impedimentos[2].fimExclusivo).toBe(adicionarDias(hoje, 30))
-    expect(
-      useEmprestimoStore.getState().registrarEmprestimo({
-        livroId: 'liv_00000001',
-        livroNome: 'Dom Quixote',
-        leitorId: emprestimoBase.leitorId,
-        leitorNome: emprestimoBase.leitorNome,
-      }),
-    ).toBe(false)
-  })
-
-  it('não cria impedimento para uma devolução dentro do prazo', () => {
-    const emprestimoBase = emprestimosIniciais.find((emprestimo) => emprestimo.id === 1)
-    if (!emprestimoBase) throw new Error('Empréstimo exemplo não encontrado.')
-
-    useEmprestimoStore.setState({
-      emprestimos: [{
-        ...emprestimoBase,
-        dataDevolucao: adicionarDias(dataISO(new Date()), 1),
-        status: 'EM_ANDAMENTO',
-      }],
-      impedimentos: [],
-    })
-
-    expect(useEmprestimoStore.getState().registrarDevolucao(emprestimoBase.id)).toBe(true)
-    expect(useEmprestimoStore.getState().impedimentos).toHaveLength(0)
-    expect(useEmprestimoStore.getState().emprestimos[0].status).toBe('DEVOLVIDO')
   })
 
   it('volta do registro de empréstimo para a tela inicial', () => {

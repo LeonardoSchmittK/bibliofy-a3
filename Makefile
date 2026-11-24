@@ -1,13 +1,21 @@
-.PHONY: front back app run help
+.PHONY: front front-test front-coverage back app run help
 
 help:
 	@echo "Comandos disponiveis:"
 	@echo "  make front    -> Roda apenas o frontend (Vite)"
+	@echo "  make front-test -> Roda os testes unitarios e de integracao do frontend"
+	@echo "  make front-coverage -> Roda os testes do frontend com cobertura"
 	@echo "  make back     -> Sobe o banco (Docker) e roda o backend (FastAPI)"
 	@echo "  make run app  -> Roda front e back juntos"
 
 front:
 	cd frontend && npm run dev
+
+front-test:
+	cd frontend && npm test
+
+front-coverage:
+	cd frontend && npm run test:coverage
 
 back:
 	cd backend && docker compose stop api && docker compose up -d db && uv run uvicorn app.main:app --reload
