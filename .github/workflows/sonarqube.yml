@@ -26,7 +26,8 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
-          npx vitest run --coverage
+          npm install --no-save vitest @vitest/coverage-v8
+          npx vitest run --coverage --coverage.reporter=lcov
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v8
