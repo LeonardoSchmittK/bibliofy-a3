@@ -26,7 +26,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
-          npm run test:coverage
+          npx vitest run --coverage
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v8
