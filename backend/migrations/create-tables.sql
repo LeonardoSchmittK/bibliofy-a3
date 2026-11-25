@@ -140,6 +140,7 @@ CREATE TABLE auditoria (
 
 CREATE INDEX ix_auditoria_entidade ON auditoria (entidade, entidade_id);
 CREATE INDEX ix_auditoria_responsavel ON auditoria (responsavel_id);
+CREATE INDEX ix_auditoria_criado_em ON auditoria (criado_em DESC, id DESC);
 
 -- Disponibilidade = quantidade_total - exemplares emprestados ou perdidos (atributo derivado).
 CREATE VIEW vw_livro_disponibilidade AS

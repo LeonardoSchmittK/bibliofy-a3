@@ -12,13 +12,14 @@ dependencies = [
     "pwdlib[argon2]",
     "pyjwt",
     "python-multipart",
+    "pydantic[email]"
 ]
 
 [dependency-groups]
 dev = [
     "pytest",
     "pytest-cov",
-    "httpx",
+    "httpx2",
     "time-machine",
     "testcontainers[postgres]",
     "ruff",

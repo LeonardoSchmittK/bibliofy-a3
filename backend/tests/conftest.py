@@ -1,18 +1,15 @@
 import os
 import warnings
 from collections.abc import Iterator
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.main import app
-
-SCHEMA_SQL = Path(__file__).resolve().parents[1] / "database" / "schema.sql"
+from tests.db_guard import preparar_banco
 
 
 @pytest.fixture
@@ -26,6 +23,7 @@ def client() -> Iterator[TestClient]:
 def db_engine() -> Iterator[Engine]:
     """PostgreSQL real: TEST_DATABASE_URL ou testcontainers. Sem nenhum dos dois, pula."""
     url = os.environ.get("TEST_DATABASE_URL")
+    externo = bool(url)
     container = None
     if not url:
         try:
@@ -39,12 +37,7 @@ def db_engine() -> Iterator[Engine]:
                 f"PostgreSQL indisponÃ­vel, testes de integraÃ§Ã£o pulados: {exc}", stacklevel=2
             )
             pytest.skip("sem TEST_DATABASE_URL nem Docker para testcontainers")
-    engine = create_engine(url)
-    with engine.begin() as conn:
-        conn.execute(text("DROP SCHEMA public CASCADE"))
-        conn.execute(text("CREATE SCHEMA public"))
-        # Driver direto: sem parâmetros o psycopg não interpreta o "%" do RAISE como placeholder.
-        conn.connection.driver_connection.execute(SCHEMA_SQL.read_text(encoding="utf-8"))
+    engine = preparar_banco(url, externo=externo)
     try:
         yield engine
     finally:

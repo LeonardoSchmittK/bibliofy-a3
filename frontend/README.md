@@ -29,9 +29,18 @@ Frontend do sistema de biblioteca Bibliofy, feito com **React**, **TypeScript** 
    npm run dev
    ```
 
-4. Abra o endereço mostrado no terminal (normalmente `http://localhost:5173`). Se a mensagem **"Está rodando, funcionou!"** aparecer, está tudo certo.
+4. Configure a URL da API. Copie `.env.example` para `.env` e ajuste `VITE_API_URL` se necessário (o padrão é `http://localhost:8000`).
+5. Inicie o backend e abra o endereço mostrado pelo Vite (normalmente `http://localhost:5173`).
 
 Para parar o servidor, use `Ctrl + C`.
+
+### Backend e autenticação
+
+O login valida as credenciais na API (`/auth/login`) e mantém o token somente na sessão atual do navegador. As rotas privadas verificam a sessão em `/auth/me`.
+
+O catálogo consulta `/livros/` e permite cadastrar, editar e arquivar livros conforme o papel retornado pelo backend. O cadastro público de usuários ainda não está disponível: novas contas devem ser criadas por um bibliotecário.
+
+Os empréstimos e leitores ainda usam o estado local do frontend; a API atual não oferece endpoints para integrar esses fluxos.
 
 ### Outros comandos
 
