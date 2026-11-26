@@ -215,19 +215,6 @@ beforeEach(() => {
   }))
 })
 
-function dataISO(data: Date): string {
-  return [
-    data.getFullYear(),
-    String(data.getMonth() + 1).padStart(2, '0'),
-    String(data.getDate()).padStart(2, '0'),
-  ].join('-')
-}
-
-function adicionarDias(data: string, dias: number): string {
-  const [ano, mes, dia] = data.split('-').map(Number)
-  return dataISO(new Date(ano, mes - 1, dia + dias, 12))
-}
-
 afterEach(() => {
   cleanup()
   useEmprestimoStore.setState({ emprestimos: emprestimosIniciais, impedimentos: [] })

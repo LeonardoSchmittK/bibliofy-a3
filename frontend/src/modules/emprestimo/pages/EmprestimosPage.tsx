@@ -67,7 +67,6 @@ export function EmprestimosPage() {
   const carregarLivros = useLivroStore((state) => state.carregarLivros)
   const dadosEmprestimoProntos = emprestimosCarregadosPara === usuarioCodigo
   const dadosLeitoresProntos = leitoresCarregadosPara === usuarioCodigo
-  const leitores = dadosLeitoresProntos ? leitoresArmazenados : []
   const emprestimos = dadosEmprestimoProntos ? emprestimosArmazenados : []
   const impedimentos = dadosEmprestimoProntos ? impedimentosArmazenados : []
 
@@ -88,15 +87,14 @@ export function EmprestimosPage() {
     [bookQuery, livros],
   )
 
-  const filteredReaders = useMemo(
-    () =>
-      leitores.filter((leitor) =>
-        normalizarBusca(`${leitor.nome} ${leitor.codigo}`).includes(
-          normalizarBusca(readerQuery),
-        ),
+  const filteredReaders = useMemo(() => {
+    const leitores = dadosLeitoresProntos ? leitoresArmazenados : []
+    return leitores.filter((leitor) =>
+      normalizarBusca(`${leitor.nome} ${leitor.codigo}`).includes(
+        normalizarBusca(readerQuery),
       ),
-    [leitores, readerQuery],
-  )
+    )
+  }, [dadosLeitoresProntos, leitoresArmazenados, readerQuery])
 
   function selecionarLivro(livro: Livro) {
     setSelectedBook(livro)
