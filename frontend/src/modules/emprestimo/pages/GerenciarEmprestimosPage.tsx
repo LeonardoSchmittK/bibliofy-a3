@@ -38,7 +38,6 @@ export function GerenciarEmprestimosPage() {
   const isBibliotecario = usuario?.papel === 'BIBLIOTECARIO'
   const emprestimosArmazenados = useEmprestimoStore((state) => state.emprestimos)
   const carregadoPara = useEmprestimoStore((state) => state.carregadoPara)
-  const emprestimos = carregadoPara === usuario?.codigo ? emprestimosArmazenados : []
   const carregando = useEmprestimoStore((state) => state.carregando)
   const erro = useEmprestimoStore((state) => state.erro)
   const carregarEmprestimos = useEmprestimoStore((state) => state.carregarEmprestimos)
@@ -53,6 +52,7 @@ export function GerenciarEmprestimosPage() {
 
   const intervaloInvalido = Boolean(dataInicial && dataFinal && dataInicial > dataFinal)
   const emprestimosFiltrados = useMemo(() => {
+    const emprestimos = carregadoPara === usuario?.codigo ? emprestimosArmazenados : []
     const termo = busca.trim().toLocaleLowerCase('pt-BR')
     return emprestimos.filter((emprestimo) => {
       const statusCorresponde =
@@ -69,7 +69,8 @@ export function GerenciarEmprestimosPage() {
         (!dataFinal || emprestimo.dataEmprestimo <= dataFinal)
       return statusCorresponde && buscaCorresponde && dataCorresponde
     })
-  }, [busca, dataFinal, dataInicial, emprestimos, intervaloInvalido, statusFiltro])
+  }, [busca, carregadoPara, dataFinal, dataInicial, emprestimosArmazenados,
+    intervaloInvalido, statusFiltro, usuario?.codigo])
 
   async function devolverEmprestimo(emprestimo: Emprestimo) {
     if (!(await registrarDevolucao(emprestimo.codigo))) {
