@@ -4,6 +4,11 @@
 
 Breve descrição do projeto. Explique aqui o objetivo principal e o problema que ele resolve.
 
+Login do biliotecário:
+
+bibliotecario@bibliofy.com
+Bibliofy@Demo1
+
 ## Sumário
 
 - [Sobre](#sobre)
