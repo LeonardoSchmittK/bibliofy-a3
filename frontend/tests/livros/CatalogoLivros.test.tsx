@@ -145,6 +145,19 @@ describe('Catálogo de livros', () => {
     expect(screen.getByRole('textbox', { name: 'Título do livro' })).toHaveValue('Livro disponível')
   })
 
+  it('usa diálogo nativo e fecha ao clicar no backdrop', async () => {
+    autenticar('BIBLIOTECARIO')
+    const user = userEvent.setup()
+    render(<AppRoutes />)
+
+    await user.click(screen.getByRole('button', { name: 'Editar Livro disponível' }))
+    const dialog = screen.getByRole('dialog', { name: 'Editar livro' })
+
+    expect(dialog.tagName).toBe('DIALOG')
+    fireEvent.click(dialog)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('abre o cadastro em um modal dentro do catálogo', async () => {
     autenticar('BIBLIOTECARIO')
     const user = userEvent.setup()

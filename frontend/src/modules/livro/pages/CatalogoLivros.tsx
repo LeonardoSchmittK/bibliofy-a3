@@ -426,13 +426,15 @@ export function CatalogoLivros() {
       </div>
 
       {podeEditar && modalAberto && (
-        <div
+        <dialog
+          open
           className="book-modal-backdrop"
-          onMouseDown={(event) => {
+          aria-labelledby="book-modal-title"
+          onClick={(event) => {
             if (event.target === event.currentTarget) fecharModal()
           }}
         >
-          <section className="book-modal" role="dialog" aria-modal="true" aria-labelledby="book-modal-title">
+          <section className="book-modal">
             <button
               className="book-modal-close"
               type="button"
@@ -486,7 +488,7 @@ export function CatalogoLivros() {
               />
             )}
           </section>
-        </div>
+        </dialog>
       )}
     </main>
   )
