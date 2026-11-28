@@ -364,11 +364,8 @@ function DashboardPage() {
             <h1>Olá, {firstName}.</h1>
             <p
               className="dashboard-subtitle"
-              tabIndex={0}
               onMouseEnter={() => isBibliotecario && setShowLoanSummary(true)}
               onMouseLeave={() => setShowLoanSummary(false)}
-              onFocus={() => isBibliotecario && setShowLoanSummary(true)}
-              onBlur={() => setShowLoanSummary(false)}
             >
               <span>
                 {isBibliotecario && showLoanSummary
@@ -388,11 +385,8 @@ function DashboardPage() {
               className="stat-pair stat-pair--books"
               role="group"
               aria-label={`${exemplaresDisponiveis} exemplares disponíveis e ${exemplaresEmprestados} emprestados`}
-              tabIndex={0}
               onMouseEnter={() => setShowBookSummary(true)}
               onMouseLeave={() => setShowBookSummary(false)}
-              onFocus={() => setShowBookSummary(true)}
-              onBlur={() => setShowBookSummary(false)}
             >
               <span className="stat-number stat-number--green">{exemplaresDisponiveisAnimados}</span>
               <span className="stat-number stat-number--red">{exemplaresEmprestadosAnimados}</span>
@@ -402,11 +396,8 @@ function DashboardPage() {
                 className="stat-pair stat-pair--loans"
                 role="group"
                 aria-label={`${emprestimosAbertos} empréstimos abertos e ${emprestimosAtrasados} atrasados`}
-                tabIndex={0}
                 onMouseEnter={() => setShowLoanSummary(true)}
                 onMouseLeave={() => setShowLoanSummary(false)}
-                onFocus={() => setShowLoanSummary(true)}
-                onBlur={() => setShowLoanSummary(false)}
               >
                 <span className="stat-number stat-number--green">{emprestimosAbertosAnimados}</span>
                 <span className="stat-number stat-number--red">{emprestimosAtrasadosAnimados}</span>

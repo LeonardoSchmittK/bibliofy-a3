@@ -5,13 +5,11 @@ WORKDIR /app
 
 # Dependências primeiro, para aproveitar o cache de camadas.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project --no-build
 
 COPY app ./app
 COPY scripts ./scripts
-RUN uv sync --frozen --no-dev
-
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:$PATH" PYTHONPATH="/app"
 RUN useradd --system --no-create-home bibliofy
 USER bibliofy
 

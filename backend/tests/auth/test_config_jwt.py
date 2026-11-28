@@ -10,6 +10,11 @@ from app.core.config import Settings
 RAIZ_BACKEND = Path(__file__).resolve().parents[2]
 
 
+@pytest.fixture(autouse=True)
+def database_url(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://user:pass@localhost/test_db")
+
+
 def test_settings_le_chave_e_expiracao_do_ambiente(monkeypatch):
     monkeypatch.setenv("JWT_SECRET", "outra-chave-0123456789abcdef0123456789")
     monkeypatch.setenv("JWT_EXPIRE_MINUTES", "10")

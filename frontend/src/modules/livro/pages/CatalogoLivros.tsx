@@ -55,9 +55,9 @@ function LivroForm({
     }))
   }
 
-  function enviar(event: FormEvent<HTMLFormElement>) {
+  async function enviar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    onSave({ ...dados, nome: dados.nome.trim(), isbn: dados.isbn.trim() })
+    await onSave({ ...dados, nome: dados.nome.trim(), isbn: dados.isbn.trim() })
   }
 
   return (
@@ -69,7 +69,6 @@ function LivroForm({
             required
             maxLength={200}
             value={dados.nome}
-            autoFocus={Boolean(livro)}
             onChange={(event) => atualizarCampo('nome', event.target.value)}
             placeholder="Digite o título"
           />

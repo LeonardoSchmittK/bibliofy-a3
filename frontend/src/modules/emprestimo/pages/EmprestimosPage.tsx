@@ -267,17 +267,16 @@ export function EmprestimosPage() {
       </section>
 
       {openPicker && (
-        <div
+        <dialog
+          open
           className="book-modal-backdrop loan-picker-backdrop"
-          onMouseDown={(event) => {
+          aria-labelledby="loan-picker-modal-title"
+          onClick={(event) => {
             if (event.target === event.currentTarget) setOpenPicker(null)
           }}
         >
           <section
             className="book-modal loan-picker-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="loan-picker-modal-title"
           >
             <button
               type="button"
@@ -376,21 +375,20 @@ export function EmprestimosPage() {
               </>
             )}
           </section>
-        </div>
+        </dialog>
       )}
 
       {showConfirmation && selectedBook && selectedReader && (
-        <div
+        <dialog
+          open
           className="book-modal-backdrop loan-confirm-backdrop"
-          onMouseDown={(event) => {
+          aria-labelledby="loan-confirm-title"
+          onClick={(event) => {
             if (event.target === event.currentTarget) setShowConfirmation(false)
           }}
         >
           <section
             className="book-modal loan-confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="loan-confirm-title"
           >
             <button
               type="button"
@@ -424,21 +422,20 @@ export function EmprestimosPage() {
               </button>
             </div>
           </section>
-        </div>
+        </dialog>
       )}
 
       {showPenalties && (
-        <div
+        <dialog
+          open
           className="book-modal-backdrop"
-          onMouseDown={(event) => {
+          aria-labelledby="loan-penalties-title"
+          onClick={(event) => {
             if (event.target === event.currentTarget) setShowPenalties(false)
           }}
         >
           <section
             className="book-modal loan-penalties-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="loan-penalties-title"
           >
             <button
               type="button"
@@ -460,7 +457,7 @@ export function EmprestimosPage() {
               devolvidos normalmente.
             </p>
           </section>
-        </div>
+        </dialog>
       )}
     </main>
   )
