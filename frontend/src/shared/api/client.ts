@@ -1,5 +1,9 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/+$/, '') || 'http://localhost:8000'
+const configuredApiUrl = import.meta.env.VITE_API_URL
+let normalizedApiUrl = configuredApiUrl ?? ''
+while (normalizedApiUrl.endsWith('/')) {
+  normalizedApiUrl = normalizedApiUrl.slice(0, -1)
+}
+const API_BASE_URL = normalizedApiUrl || 'http://localhost:8000'
 
 export class ApiError extends Error {
   readonly status: number

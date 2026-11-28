@@ -18,7 +18,7 @@ python -m venv .venv
 pip install -e . --group dev
 ```
 
-Copie `.env.example` para `.env` e ajuste se necessário.
+Copie `.env.example` para `.env` e defina `DATABASE_URL` e um `JWT_SECRET` forte antes de iniciar a API.
 
 ## Execução
 

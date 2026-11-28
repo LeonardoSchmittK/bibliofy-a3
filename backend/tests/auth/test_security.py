@@ -40,7 +40,10 @@ def test_hash_nao_contem_a_senha():
 def test_hash_tem_salt_proprio_a_cada_chamada():
     from app.core.security import hash_senha
 
-    assert hash_senha(SENHA) != hash_senha(SENHA)
+    primeiro_hash = hash_senha(SENHA)
+    segundo_hash = hash_senha(SENHA)
+
+    assert primeiro_hash != segundo_hash
 
 
 def test_hash_cabe_na_coluna_senha_hash():

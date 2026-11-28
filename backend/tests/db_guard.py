@@ -55,11 +55,10 @@ def validar_destino(url: str, urls_app: Iterable[str | None] = ()) -> URL:
 
 
 def _urls_da_aplicacao() -> list[str]:
-    from app.core.config import Settings, get_settings
+    from app.core.config import get_settings
 
     urls: list[str | None] = [
         os.environ.get("DATABASE_URL"),
-        Settings.model_fields["database_url"].default,
     ]
     try:
         urls.append(get_settings().database_url)
